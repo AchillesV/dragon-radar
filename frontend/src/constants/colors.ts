@@ -1,0 +1,17 @@
+export const COLORS = {
+  limitUp: '#c0392b',
+  rise: '#e74c3c',
+  fall: '#27ae60',
+  limitDown: '#1e8449',
+  neutral: '#95a5a6',
+  bgPrimary: '#0f1117',
+  bgCard: '#1a1d29',
+  bgHover: '#252836',
+  textPrimary: '#ffffff',
+  textSecondary: '#8b949e',
+  textMuted: '#4a5568',
+  chartRed: '#ff4d4f',
+  chartGreen: '#52c41a',
+  chartBlue: '#1890ff',
+  chartGold: '#faad14',
+};

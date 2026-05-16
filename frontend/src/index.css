@@ -1,0 +1,86 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #0f1117;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Tabular numbers for financial data */
+.tabular-nums,
+[class*='amount'],
+[class*='price'],
+[class*='change'] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1d29;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3d4255;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4a5568;
+}
+
+/* Ant Design overrides */
+.ant-table-wrapper .ant-table {
+  background: transparent !important;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr.row-limit-up > td {
+  background: rgba(192, 57, 43, 0.06) !important;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr.row-limit-up:hover > td {
+  background: rgba(192, 57, 43, 0.1) !important;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr.row-limit-down > td {
+  background: rgba(39, 174, 96, 0.06) !important;
+}
+
+.ant-popover-inner {
+  padding: 0 !important;
+}
+
+.ant-modal-wrap {
+  backdrop-filter: blur(4px);
+}
+
+/* CheckableTag */
+.ant-tag-checkable {
+  cursor: pointer;
+  border-radius: 4px !important;
+  transition: all 0.2s !important;
+}
+
+/* Loading animation for stat cards */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

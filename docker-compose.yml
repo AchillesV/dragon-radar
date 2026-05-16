@@ -1,0 +1,191 @@
+version: "3.9"
+
+networks:
+  dragonradar-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  clickhouse-data:
+
+services:
+  # -------------------------------------------------------------------------
+  # 基础设施
+  # -------------------------------------------------------------------------
+  postgres:
+    image: postgres:15
+    container_name: dragonradar-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dragonradar
+      POSTGRES_USER: dragonradar
+      POSTGRES_PASSWORD: dragonradar
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - dragonradar-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dragonradar -d dragonradar"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: dragonradar-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - dragonradar-net
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: dragonradar-clickhouse
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./init-db/clickhouse-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - dragonradar-net
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # -------------------------------------------------------------------------
+  # 微服务
+  # -------------------------------------------------------------------------
+  market-service:
+    build:
+      context: ./services/market
+      dockerfile: Dockerfile
+    container_name: dragonradar-market
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://dragonradar:dragonradar@postgres:5432/dragonradar
+      CLICKHOUSE_URL: http://clickhouse:8123
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - dragonradar-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8001/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  strategy-service:
+    build:
+      context: ./services/strategy
+      dockerfile: Dockerfile
+    container_name: dragonradar-strategy
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://dragonradar:dragonradar@postgres:5432/dragonradar
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - dragonradar-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8002/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  ai-analysis-service:
+    build:
+      context: ./services/ai_analysis
+      dockerfile: Dockerfile
+    container_name: dragonradar-ai
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://dragonradar:dragonradar@postgres:5432/dragonradar
+      ANTHROPIC_API_KEY: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - dragonradar-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8003/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # -------------------------------------------------------------------------
+  # API 网关
+  # -------------------------------------------------------------------------
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: dragonradar-gateway
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      REDIS_URL: redis://redis:6379
+      MARKET_SERVICE_URL: http://market-service:8001
+      STRATEGY_SERVICE_URL: http://strategy-service:8002
+      AI_SERVICE_URL: http://ai-analysis-service:8003
+    depends_on:
+      market-service:
+        condition: service_healthy
+      strategy-service:
+        condition: service_healthy
+      ai-analysis-service:
+        condition: service_healthy
+    networks:
+      - dragonradar-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
