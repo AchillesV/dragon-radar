@@ -97,7 +97,8 @@ export default function SectorRankChart() {
       {isLoading ? (
         <LoadingState height={320} />
       ) : data ? (
-        <ReactECharts option={buildOption(data)} style={{ height: 320 }} />
+        // key 强制 ECharts 在切换 tab 时重建实例，否则图表不刷新
+        <ReactECharts key={activeTab} option={buildOption(data)} style={{ height: 320 }} />
       ) : null}
     </div>
   );

@@ -81,8 +81,8 @@ function toSectorRank(raw: any): SectorRank {
 function toFundFlowItem(raw: any): FundFlowItem {
   return {
     name: raw.name,
-    // 后端字段 net_inflow（万元），前端显示亿元
-    amount: raw.net_inflow != null ? raw.net_inflow / 10000 : (raw.amount ?? 0),
+    // 后端 net_inflow 已经是亿元，直接使用
+    amount: raw.net_inflow ?? raw.amount ?? 0,
     changePct: raw.change_pct ?? raw.changePct ?? 0,
   };
 }
