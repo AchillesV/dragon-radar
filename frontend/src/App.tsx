@@ -3,11 +3,13 @@ import { ConfigProvider, theme } from 'antd';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import zhCN from 'antd/locale/zh_CN';
 import Header from './components/common/Header';
+import BottomTabBar from './components/layout/BottomTabBar';
 import Dashboard from './pages/Dashboard';
 import AnomalyMonitor from './pages/AnomalyMonitor';
 import AnomalyDetail from './pages/AnomalyDetail';
 import Screening from './pages/Screening';
 import { COLORS } from './constants/colors';
+import { useIsMobile } from './hooks/useIsMobile';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,6 +21,8 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
+  const isMobile = useIsMobile();
+
   return (
     <QueryClientProvider client={queryClient}>
       <ConfigProvider
@@ -67,7 +71,7 @@ export default function App() {
             <Header />
             <main
               style={{
-                padding: '24px',
+                padding: isMobile ? '12px 12px 72px' : '24px',
                 background: COLORS.bgPrimary,
                 minHeight: 'calc(100vh - 56px)',
               }}
@@ -79,6 +83,7 @@ export default function App() {
                 <Route path="/screening" element={<Screening />} />
               </Routes>
             </main>
+            {isMobile && <BottomTabBar />}
           </div>
         </BrowserRouter>
       </ConfigProvider>

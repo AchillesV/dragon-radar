@@ -3,6 +3,7 @@ import { Space } from 'antd';
 import dayjs from 'dayjs';
 import { COLORS } from '../../constants/colors';
 import { useMarketOverview } from '../../hooks/useMarketData';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 const navItems = [
   { path: '/', label: '行情总览' },
@@ -25,13 +26,14 @@ const statusLabels: Record<string, string> = {
 export default function Header() {
   const { data: overview } = useMarketOverview();
   const marketStatus = overview?.marketStatus ?? 'closed';
+  const isMobile = useIsMobile();
 
   return (
     <header
       style={{
         background: COLORS.bgPrimary,
         borderBottom: `1px solid #252836`,
-        padding: '0 24px',
+        padding: isMobile ? '0 16px' : '0 24px',
         height: 56,
         display: 'flex',
         alignItems: 'center',
@@ -42,61 +44,67 @@ export default function Header() {
       }}
     >
       {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 28 }}>🐉</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12 }}>
+        <span style={{ fontSize: isMobile ? 24 : 28 }}>🐉</span>
         <span
           style={{
-            fontSize: 18,
+            fontSize: isMobile ? 16 : 18,
             fontWeight: 700,
             color: COLORS.textPrimary,
-            letterSpacing: 2,
+            letterSpacing: isMobile ? 1 : 2,
           }}
         >
           龙头雷达
         </span>
-        <span
-          style={{
-            fontSize: 11,
-            color: COLORS.textMuted,
-            border: `1px solid ${COLORS.textMuted}`,
-            borderRadius: 3,
-            padding: '1px 5px',
-            letterSpacing: 1,
-          }}
-        >
-          DragonRadar
-        </span>
+        {!isMobile && (
+          <span
+            style={{
+              fontSize: 11,
+              color: COLORS.textMuted,
+              border: `1px solid ${COLORS.textMuted}`,
+              borderRadius: 3,
+              padding: '1px 5px',
+              letterSpacing: 1,
+            }}
+          >
+            DragonRadar
+          </span>
+        )}
       </div>
 
-      {/* Navigation */}
-      <nav style={{ display: 'flex', gap: 8 }}>
-        {navItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === '/'}
-            style={({ isActive }) => ({
-              color: isActive ? COLORS.chartRed : COLORS.textSecondary,
-              textDecoration: 'none',
-              padding: '6px 16px',
-              borderRadius: 6,
-              fontSize: 14,
-              fontWeight: isActive ? 600 : 400,
-              background: isActive ? 'rgba(255,77,79,0.12)' : 'transparent',
-              border: isActive ? `1px solid rgba(255,77,79,0.3)` : '1px solid transparent',
-              transition: 'all 0.2s',
-            })}
-          >
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
+      {/* Navigation — desktop only, mobile uses BottomTabBar */}
+      {!isMobile && (
+        <nav style={{ display: 'flex', gap: 8 }}>
+          {navItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={item.path === '/'}
+              style={({ isActive }) => ({
+                color: isActive ? COLORS.chartRed : COLORS.textSecondary,
+                textDecoration: 'none',
+                padding: '6px 16px',
+                borderRadius: 6,
+                fontSize: 14,
+                fontWeight: isActive ? 600 : 400,
+                background: isActive ? 'rgba(255,77,79,0.12)' : 'transparent',
+                border: isActive ? `1px solid rgba(255,77,79,0.3)` : '1px solid transparent',
+                transition: 'all 0.2s',
+              })}
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
 
       {/* Right: date + status */}
-      <Space size={16}>
-        <span style={{ color: COLORS.textSecondary, fontSize: 13 }}>
-          {dayjs().format('YYYY-MM-DD')}
-        </span>
+      <Space size={isMobile ? 8 : 16}>
+        {!isMobile && (
+          <span style={{ color: COLORS.textSecondary, fontSize: 13 }}>
+            {dayjs().format('YYYY-MM-DD')}
+          </span>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div
             style={{

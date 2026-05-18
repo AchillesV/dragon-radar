@@ -4,12 +4,14 @@ import { ReloadOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import AnomalyCardComponent from '../components/anomaly/AnomalyCard';
 import { useAnomalyCards } from '../hooks/useAnomalyData';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { COLORS } from '../constants/colors';
 import { LoadingState } from '../components/common/StatusStates';
 
 export default function AnomalyMonitor() {
   const { data: cards, isLoading } = useAnomalyCards();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [refreshing, setRefreshing] = useState(false);
   const [lastScan, setLastScan] = useState(new Date().toLocaleTimeString('zh-CN'));
 
@@ -30,20 +32,23 @@ export default function AnomalyMonitor() {
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 20,
+          alignItems: isMobile ? 'flex-start' : 'center',
+          marginBottom: isMobile ? 12 : 20,
+          flexWrap: 'wrap',
+          gap: 8,
         }}
       >
         <div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: COLORS.textPrimary, marginBottom: 4 }}>
+          <div style={{ fontSize: isMobile ? 16 : 20, fontWeight: 700, color: COLORS.textPrimary, marginBottom: 4 }}>
             异动监控
           </div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted }}>
-            最后扫描：{lastScan} · 共 {cards?.length ?? 0} 种异动类型
+          <div style={{ fontSize: 12, color: COLORS.textMuted }}>
+            扫描：{lastScan} · {cards?.length ?? 0} 种类型
           </div>
         </div>
         <Space>
           <Button
+            size={isMobile ? 'small' : 'middle'}
             icon={<ReloadOutlined spin={refreshing} />}
             onClick={handleRefresh}
             loading={refreshing}
@@ -53,17 +58,17 @@ export default function AnomalyMonitor() {
               background: 'rgba(255,77,79,0.08)',
             }}
           >
-            {refreshing ? '扫描中...' : '手动刷新'}
+            {refreshing ? '扫描中...' : '刷新'}
           </Button>
         </Space>
       </div>
 
-      {/* 4-col grid */}
+      {/* responsive grid: 4-col desktop, 2-col mobile */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 12,
+          gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+          gap: isMobile ? 8 : 12,
         }}
       >
         {(cards ?? []).map((card) => (

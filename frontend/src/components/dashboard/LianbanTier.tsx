@@ -47,8 +47,8 @@ export default function LianbanTier() {
               {tier.count}板
             </div>
 
-            {/* Stocks */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {/* Stocks — 移动端横向滚动 */}
+            <div className="lianban-stocks-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, flex: 1 }}>
               {tier.stocks.map((stock, idx) => {
                 const fullStock = mockStocks.find((s) => s.code === stock.code);
                 const isTop = idx === 0 && tier === tiers[0];

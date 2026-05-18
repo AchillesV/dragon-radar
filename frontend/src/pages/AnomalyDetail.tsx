@@ -5,12 +5,14 @@ import type { AnomalyType } from '../types';
 import { useAnomalyCards } from '../hooks/useAnomalyData';
 import { useAnomalyStocks } from '../hooks/useAnomalyData';
 import StockTable from '../components/screening/StockTable';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { COLORS } from '../constants/colors';
 import { LoadingState } from '../components/common/StatusStates';
 
 export default function AnomalyDetail() {
   const { type } = useParams<{ type: string }>();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { data: cards } = useAnomalyCards();
   const { data: stocks, isLoading } = useAnomalyStocks(type as AnomalyType);
 
@@ -46,10 +48,12 @@ export default function AnomalyDetail() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: 20,
+          marginBottom: isMobile ? 12 : 20,
+          flexWrap: 'wrap',
+          gap: 8,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Button
             type="text"
             icon={<ArrowLeftOutlined />}
@@ -61,7 +65,7 @@ export default function AnomalyDetail() {
               {
                 title: (
                   <span
-                    style={{ color: COLORS.textSecondary, cursor: 'pointer' }}
+                    style={{ color: COLORS.textSecondary, cursor: 'pointer', fontSize: isMobile ? 13 : 14 }}
                     onClick={() => navigate('/anomaly')}
                   >
                     异动监控
@@ -70,7 +74,7 @@ export default function AnomalyDetail() {
               },
               {
                 title: (
-                  <span style={{ color: COLORS.textPrimary, fontWeight: 600 }}>
+                  <span style={{ color: COLORS.textPrimary, fontWeight: 600, fontSize: isMobile ? 13 : 14 }}>
                     {card?.icon} {typeName}
                   </span>
                 ),
@@ -78,20 +82,22 @@ export default function AnomalyDetail() {
             ]}
           />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {!isLoading && (
-            <span style={{ fontSize: 13, color: COLORS.textSecondary }}>
+            <span style={{ fontSize: 12, color: COLORS.textSecondary }}>
               共 <span style={{ color: COLORS.textPrimary, fontWeight: 600 }}>{stocks?.length ?? 0}</span> 只
             </span>
           )}
-          <Button
-            size="small"
-            icon={<DownloadOutlined />}
-            onClick={handleExportCSV}
-            style={{ borderColor: '#3d4255', color: COLORS.textMuted, background: 'transparent' }}
-          >
-            导出CSV
-          </Button>
+          {!isMobile && (
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={handleExportCSV}
+              style={{ borderColor: '#3d4255', color: COLORS.textMuted, background: 'transparent' }}
+            >
+              导出CSV
+            </Button>
+          )}
         </div>
       </div>
 
@@ -101,25 +107,25 @@ export default function AnomalyDetail() {
           style={{
             background: COLORS.bgCard,
             borderRadius: 8,
-            padding: '12px 16px',
-            marginBottom: 16,
+            padding: isMobile ? '10px 12px' : '12px 16px',
+            marginBottom: isMobile ? 12 : 16,
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
+            gap: isMobile ? 8 : 12,
             border: '1px solid #252836',
           }}
         >
-          <span style={{ fontSize: 28 }}>{card.icon}</span>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: COLORS.textPrimary, marginBottom: 2 }}>
+          <span style={{ fontSize: isMobile ? 22 : 28, flexShrink: 0 }}>{card.icon}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: isMobile ? 13 : 15, fontWeight: 600, color: COLORS.textPrimary, marginBottom: 2 }}>
               {card.title}
             </div>
-            <div style={{ fontSize: 13, color: COLORS.textSecondary }}>{card.description}</div>
+            <div style={{ fontSize: 12, color: COLORS.textSecondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isMobile ? 'nowrap' : 'normal' }}>{card.description}</div>
           </div>
           <div
             style={{
-              marginLeft: 'auto',
-              fontSize: 32,
+              flexShrink: 0,
+              fontSize: isMobile ? 24 : 32,
               fontWeight: 700,
               color: COLORS.chartRed,
               fontVariantNumeric: 'tabular-nums',

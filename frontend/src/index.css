@@ -84,3 +84,78 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+
+/* ─── Mobile Responsive ────────────────────────────── */
+
+/* Horizontal scroll for lianban tier on mobile */
+@media (max-width: 768px) {
+  /* Prevent horizontal page overflow */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Lianban tier stocks row: scrollable */
+  .lianban-stocks-row {
+    overflow-x: auto;
+    flex-wrap: nowrap !important;
+    padding-bottom: 4px;
+  }
+
+  /* Stat card: smaller font on mobile */
+  .stat-card-value {
+    font-size: 26px !important;
+  }
+
+  /* Table: horizontal scroll */
+  .ant-table-wrapper {
+    overflow-x: auto;
+  }
+
+  /* ECharts: prevent overflow */
+  .echarts-for-react {
+    width: 100% !important;
+  }
+
+  /* Ant Design table compact on mobile */
+  .ant-table-tbody > tr > td,
+  .ant-table-thead > tr > th {
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+    white-space: nowrap;
+  }
+
+  /* Tabs compact */
+  .ant-tabs-tab {
+    padding: 6px 8px !important;
+    font-size: 13px !important;
+  }
+
+  /* Hide less important columns on mobile (via JS or CSS nth-child) */
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  /* Select dropdowns full width */
+  .ant-select {
+    width: 100% !important;
+  }
+
+  /* FilterBar: wrap to column */
+  .filter-bar-inner {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  /* Feature selector tags: smaller */
+  .ant-tag {
+    font-size: 12px !important;
+    padding: 2px 8px !important;
+  }
+}
+
+/* Prevent safe-area overlap on iOS */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .bottom-tab-bar {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
