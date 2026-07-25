@@ -11,6 +11,7 @@ import type {
   StockReport,
   StockDescription,
   OperationGuide,
+  TrendStock,
 } from '../types';
 import {
   mockStocks,
@@ -23,6 +24,7 @@ import {
   mockAmountHistory,
   mockBulkAnalysis,
   mockAnomalyStocks,
+  mockTrendStocks,
 } from '../mock/data';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
@@ -296,6 +298,31 @@ export async function fetchScreeningStocks(features: string[]): Promise<StockRow
     params: { feature_ids: features.join(',') },
   });
   return (res.data as unknown[]).map(toStockRow);
+}
+
+// 「趋势」信号
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toTrendStock(raw: any): TrendStock {
+  return {
+    code: raw.code,
+    name: raw.name,
+    price: raw.price ?? undefined,
+    changePct: raw.change_pct ?? raw.changePct ?? 0,
+    industry: raw.industry ?? undefined,
+    breakoutDate: raw.breakout_date ?? raw.breakoutDate ?? '',
+    breakoutVolume: raw.breakout_volume ?? raw.breakoutVolume ?? 0,
+    baselineAvgVolume: raw.baseline_avg_volume ?? raw.baselineAvgVolume ?? 0,
+    fundFlowWindow: raw.fund_flow_window ?? raw.fundFlowWindow ?? '5日',
+    fundFlowChangePct: raw.fund_flow_change_pct ?? raw.fundFlowChangePct ?? 0,
+    fundFlowMainInflow: raw.fund_flow_main_inflow ?? raw.fundFlowMainInflow ?? 0,
+    description: raw.description ?? undefined,
+  };
+}
+
+export async function fetchTrendStocks(): Promise<TrendStock[]> {
+  if (USE_MOCK) { await delay(500); return mockTrendStocks; }
+  const res = await http.get('/screening/trend/candidates');
+  return (res.data as unknown[]).map(toTrendStock);
 }
 
 // ---- 多条件过滤 ----

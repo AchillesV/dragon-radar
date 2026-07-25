@@ -5,6 +5,7 @@ const tabs = [
   { path: '/', label: '行情', icon: '📊', end: true },
   { path: '/anomaly', label: '异动', icon: '⚡', end: false },
   { path: '/screening', label: '筛选', icon: '🔍', end: false },
+  { path: '/trend', label: '趋势', icon: '📈', end: false },
 ];
 
 export default function BottomTabBar() {

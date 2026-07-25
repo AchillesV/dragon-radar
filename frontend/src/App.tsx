@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import AnomalyMonitor from './pages/AnomalyMonitor';
 import AnomalyDetail from './pages/AnomalyDetail';
 import Screening from './pages/Screening';
+import Trend from './pages/Trend';
 import { COLORS } from './constants/colors';
 import { useIsMobile } from './hooks/useIsMobile';
 
@@ -81,6 +82,7 @@ export default function App() {
                 <Route path="/anomaly" element={<AnomalyMonitor />} />
                 <Route path="/anomaly/:type" element={<AnomalyDetail />} />
                 <Route path="/screening" element={<Screening />} />
+                <Route path="/trend" element={<Trend />} />
               </Routes>
             </main>
             {isMobile && <BottomTabBar />}
