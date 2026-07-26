@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from routers import anomaly as anomaly_router
 from routers import screening as screening_router
+from routers import trend as trend_router
 
 load_dotenv()
 
@@ -55,6 +56,7 @@ app.state.get_redis = get_redis
 
 app.include_router(anomaly_router.router, tags=["anomaly"])
 app.include_router(screening_router.router, prefix="/screening", tags=["screening"])
+app.include_router(trend_router.router, prefix="/screening/trend", tags=["trend"])
 
 
 @app.get("/health")

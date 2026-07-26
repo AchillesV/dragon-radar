@@ -109,6 +109,21 @@ export interface FeatureTag {
   isDefault: boolean;
 }
 
+export interface TrendStock {
+  code: string;
+  name: string;
+  price?: number;
+  changePct: number;
+  industry?: string;
+  breakoutDate: string;        // 放量日 D
+  breakoutVolume: number;
+  baselineAvgVolume: number;   // 放量前 5 日基准均量
+  fundFlowWindow: '3日' | '5日' | '10日';
+  fundFlowChangePct: number;
+  fundFlowMainInflow: number;  // 亿元
+  description?: string;
+}
+
 export interface BulkAnalysisResult {
   date: string;
   totalCandidates: number;
