@@ -47,7 +47,7 @@ class FilterRequest(BaseModel):
 
 
 class TrendStock(BaseModel):
-    """「趋势」命中股票 —— 放量启动 + 持续放量 + 横盘资金不流出"""
+    """「趋势」命中股票 —— 放量启动 + 持续放量 + 横盘"""
     code: str
     name: str
     price: Optional[float] = None
@@ -56,7 +56,6 @@ class TrendStock(BaseModel):
     breakout_date: str              # 放量日 D
     breakout_volume: float
     baseline_avg_volume: float      # 放量前 5 日基准均量
-    fund_flow_window: str           # 命中的窗口："3日" / "5日" / "10日"
-    fund_flow_change_pct: float
-    fund_flow_main_inflow: float    # 亿元
+    range_window: str               # 命中横盘条件的窗口："3日" / "5日" / "10日"
+    range_change_pct: float         # 该窗口累计涨跌幅
     description: Optional[str] = None

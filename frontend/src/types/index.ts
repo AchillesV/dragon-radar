@@ -118,9 +118,8 @@ export interface TrendStock {
   breakoutDate: string;        // 放量日 D
   breakoutVolume: number;
   baselineAvgVolume: number;   // 放量前 5 日基准均量
-  fundFlowWindow: '3日' | '5日' | '10日';
-  fundFlowChangePct: number;
-  fundFlowMainInflow: number;  // 亿元
+  rangeWindow: '3日' | '5日' | '10日';  // 命中横盘条件的窗口
+  rangeChangePct: number;      // 该窗口累计涨跌幅
   description?: string;
 }
 

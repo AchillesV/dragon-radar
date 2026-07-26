@@ -1,18 +1,20 @@
 """
 趋势信号路由 —— 早期启动形态识别
 
-规则（见 issue 讨论定稿版）：
+规则（v0.4，见 issue 讨论定稿版）：
   阶段① 放量日 D：近 10 个交易日内，某天成交量 ≥ 该日之前 5 日均量 × 2.5
   阶段② 持续放量：D 之后每一天成交量都 ≥ 放量前 5 日基准均量 × 1.5（不打回原形）
-  阶段③ 横盘 + 资金净流入：3日/5日/10日 中任意一个窗口，同时满足
-        涨跌幅 ∈ [-10%, 10%] 且 主力净流入 > 0（两者必须来自同一个窗口）
+  阶段③ 横盘：3日/5日/10日 中任意一个窗口，累计涨跌幅 ∈ [-10%, 10%]
 
-数据来源：
-  阶段①② —— 复用 screening.py 里已有的腾讯 K 线抓取（个股日线，1小时缓存）
-  阶段③ —— 东方财富全市场资金流排名批量接口（一次调用覆盖全市场，非逐只股票请求）
+数据来源：全部改为腾讯 K 线（个股日线），阶段①②③在同一次抓取里一起算，
+不再依赖东方财富/百度的资金流接口 —— 那两个数据源在生产环境反复验证都拿不到
+数据（详见 issue 历史评论），且这次简化后阶段③不再需要资金净流入数据，正好
+不再依赖它们。
 
-阶段③ batch 结果天然覆盖全市场且开销很小，所以先算阶段③、过滤出候选子集，
-再对这个子集做阶段①②的逐只股票历史抓取，避免对全市场 5000+ 只股票都做历史请求。
+股票池来自沪深京交易所官方股票列表（akshare stock_info_a_code_name，非
+东财 push2 接口），逐只股票抓取腾讯 K 线校验三阶段条件；剔除创业板/ST后
+全市场约 5000+ 只，用 20 并发抓取，冷启动一次计算约 1 分钟量级，用较长
+TTL 缓存结果。
 """
 import logging
 import time
@@ -29,13 +31,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# 规则参数（锁定值，来自设计文档 v0.3）
+# 规则参数（锁定值，来自设计文档 v0.3 / v0.4）
 # ---------------------------------------------------------------------------
 BREAKOUT_BASELINE_DAYS = 5
 BREAKOUT_MULTIPLIER = 2.5
 SUSTAIN_MULTIPLIER = 1.5
 LOOKBACK_TRADING_DAYS = 10
-FUND_FLOW_WINDOWS = ("3日", "5日", "10日")
+RANGE_WINDOWS = (3, 5, 10)
 CHANGE_PCT_MIN, CHANGE_PCT_MAX = -10.0, 10.0
 
 # ---------------------------------------------------------------------------
@@ -52,93 +54,58 @@ def _is_qualified(code: str, name: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# 阶段③：全市场资金流/涨跌幅排名（批量接口，短 TTL 缓存）
+# 全市场股票池（沪深京交易所官方列表，非东财 push2，24小时缓存）
 # ---------------------------------------------------------------------------
 
-_FUND_FLOW_CACHE: Dict[str, Tuple[float, pd.DataFrame]] = {}
-_FUND_FLOW_TTL = 600  # 10分钟；该接口本身就是滚动 3/5/10 日的累计值，不需要高频刷新
+_UNIVERSE_CACHE: Optional[Tuple[float, List[Tuple[str, str]]]] = None
+_UNIVERSE_TTL = 24 * 3600
 
 
-def _fetch_fund_flow_rank(indicator: str) -> Optional[pd.DataFrame]:
+def _get_universe() -> List[Tuple[str, str]]:
+    """返回 [(code, name), ...]，已剔除创业板/ST"""
+    global _UNIVERSE_CACHE
     now = time.time()
-    cached = _FUND_FLOW_CACHE.get(indicator)
-    if cached and now - cached[0] < _FUND_FLOW_TTL:
-        return cached[1]
+    if _UNIVERSE_CACHE and now - _UNIVERSE_CACHE[0] < _UNIVERSE_TTL:
+        return _UNIVERSE_CACHE[1]
 
     import akshare as ak
 
+    df = None
     for attempt in range(3):
         try:
-            df = ak.stock_individual_fund_flow_rank(indicator=indicator)
-            _FUND_FLOW_CACHE[indicator] = (now, df)
-            return df
+            df = ak.stock_info_a_code_name()
+            break
         except Exception as e:
-            logger.warning(f"stock_individual_fund_flow_rank({indicator}) 第{attempt + 1}次失败: {e}")
-            time.sleep(1.5 * (attempt + 1))
-    return None
+            logger.warning(f"获取全市场股票列表第{attempt + 1}次失败: {e}")
+            time.sleep(2 * (attempt + 1))
+    if df is None:
+        return _UNIVERSE_CACHE[1] if _UNIVERSE_CACHE else []
 
-
-def _build_phase3_candidates() -> Dict[str, dict]:
-    """
-    拉取 3/5/10 日资金流排名，构建 code -> {window, change_pct, main_inflow, name} 的候选集合。
-    只保留至少命中一个窗口（涨跌幅达标 且 主力净流入>0）的股票。
-    """
-    candidates: Dict[str, dict] = {}
-
-    for window in FUND_FLOW_WINDOWS:
-        df = _fetch_fund_flow_rank(window)
-        if df is None or df.empty:
-            logger.warning(f"资金流排名 {window} 获取失败，跳过该窗口")
-            continue
-
-        change_col = f"{window}涨跌幅"
-        inflow_col = f"{window}主力净流入-净额"
-        if change_col not in df.columns or inflow_col not in df.columns:
-            continue
-
-        for _, row in df.iterrows():
-            code = str(row.get("代码", ""))
-            name = str(row.get("名称", ""))
-            if not code or code in candidates:
-                continue
-            if not _is_qualified(code, name):
-                continue
-
-            change_pct = pd.to_numeric(row.get(change_col), errors="coerce")
-            main_inflow_yuan = pd.to_numeric(row.get(inflow_col), errors="coerce")
-            if pd.isna(change_pct) or pd.isna(main_inflow_yuan):
-                continue
-
-            if CHANGE_PCT_MIN <= change_pct <= CHANGE_PCT_MAX and main_inflow_yuan > 0:
-                candidates[code] = {
-                    "name": name,
-                    "price": pd.to_numeric(row.get("最新价"), errors="coerce"),
-                    "window": window,
-                    "change_pct": round(float(change_pct), 2),
-                    "main_inflow": round(float(main_inflow_yuan) / 1e8, 2),  # 元 -> 亿元
-                }
-
-    return candidates
+    universe = [
+        (str(row["code"]), str(row["name"]))
+        for _, row in df.iterrows()
+        if _is_qualified(str(row["code"]), str(row["name"]))
+    ]
+    _UNIVERSE_CACHE = (now, universe)
+    logger.info(f"全市场股票池刷新: {len(universe)} 只（已剔除创业板/ST）")
+    return universe
 
 
 # ---------------------------------------------------------------------------
-# 阶段①②：放量日检测 + 持续放量校验（逐只股票历史行情）
+# 阶段①②③：单只股票的历史行情一次抓取，同时校验放量+持续放量+横盘
 # ---------------------------------------------------------------------------
 
 
-def _detect_breakout(df: pd.DataFrame) -> Optional[dict]:
+def _detect_breakout(volumes: List[float], dates: List[str]) -> Optional[dict]:
     """
     在最近 LOOKBACK_TRADING_DAYS 个交易日内寻找放量日 D：
       某天成交量 >= 该日之前 BREAKOUT_BASELINE_DAYS 日均量 * BREAKOUT_MULTIPLIER
     且 D 之后每一天成交量都 >= 放量前基准均量 * SUSTAIN_MULTIPLIER。
     返回最早满足条件的 D（含基准均量/放量日成交量/日期），否则 None。
     """
-    if df is None or len(df) < BREAKOUT_BASELINE_DAYS + 1:
+    n = len(volumes)
+    if n < BREAKOUT_BASELINE_DAYS + 1:
         return None
-
-    n = len(df)
-    volumes = df["成交量"].tolist()
-    dates = df["日期"].tolist()
 
     search_start = max(BREAKOUT_BASELINE_DAYS, n - LOOKBACK_TRADING_DAYS)
 
@@ -148,7 +115,6 @@ def _detect_breakout(df: pd.DataFrame) -> Optional[dict]:
         if baseline_avg <= 0 or volumes[i] < baseline_avg * BREAKOUT_MULTIPLIER:
             continue
 
-        # D 之后（不含 D 当天）每一天都不能跌破基准均量的 SUSTAIN_MULTIPLIER 倍
         tail = volumes[i + 1:]
         if all(v >= baseline_avg * SUSTAIN_MULTIPLIER for v in tail):
             return {
@@ -159,77 +125,112 @@ def _detect_breakout(df: pd.DataFrame) -> Optional[dict]:
     return None
 
 
-def _check_one(code: str) -> Optional[dict]:
-    # days=25 与 screening.py 的默认值保持一致，复用同一份 1 小时内存缓存
-    # （_HIST_CACHE 按 code 缓存，不区分 days，值必须一致才不会互相截断）
+def _check_range(closes: List[float]) -> Optional[dict]:
+    """
+    3/5/10 日窗口，任意一个窗口的累计涨跌幅在 [-10%, 10%] 之间即通过。
+    累计涨跌幅 = (窗口最后一天收盘价 / 窗口第一天前一交易日收盘价 - 1) * 100
+    """
+    n = len(closes)
+    for w in RANGE_WINDOWS:
+        if n < w + 1:
+            continue
+        start_close = closes[-w - 1]
+        end_close = closes[-1]
+        if start_close <= 0:
+            continue
+        change_pct = round((end_close / start_close - 1) * 100, 2)
+        if CHANGE_PCT_MIN <= change_pct <= CHANGE_PCT_MAX:
+            return {"window": f"{w}日", "change_pct": change_pct}
+    return None
+
+
+def _check_one(code: str, name: str) -> Optional[dict]:
     df = _fetch_hist_tencent(code, days=25)
     if df is None or df.empty:
         return None
-    return _detect_breakout(df)
+
+    volumes = df["成交量"].tolist()
+    closes = df["收盘"].tolist()
+    dates = df["日期"].tolist()
+
+    breakout = _detect_breakout(volumes, dates)
+    if not breakout:
+        return None
+    range_match = _check_range(closes)
+    if not range_match:
+        return None
+
+    return {
+        "code": code,
+        "name": name,
+        "price": closes[-1] if closes else None,
+        "change_pct": range_match["change_pct"],
+        "breakout": breakout,
+        "range_window": range_match["window"],
+        "range_change_pct": range_match["change_pct"],
+    }
 
 
-def _batch_detect_breakout(codes: List[str]) -> Dict[str, dict]:
-    results: Dict[str, dict] = {}
+def _batch_check(universe: List[Tuple[str, str]]) -> List[dict]:
+    results: List[dict] = []
     with ThreadPoolExecutor(max_workers=20) as pool:
-        futs = {pool.submit(_check_one, code): code for code in codes}
+        futs = {pool.submit(_check_one, code, name): code for code, name in universe}
         for fut in as_completed(futs):
-            code = futs[fut]
             try:
                 match = fut.result()
                 if match:
-                    results[code] = match
+                    results.append(match)
             except Exception as e:
-                logger.debug(f"breakout detection error {code}: {e}")
+                logger.debug(f"trend check error {futs[fut]}: {e}")
     return results
 
 
 # ---------------------------------------------------------------------------
-# 组合结果（10分钟缓存，避免同一交易日内重复触发全量计算）
+# 组合结果（30分钟缓存 —— 全市场逐只扫描，冷启动耗时较长，不宜频繁触发）
 # ---------------------------------------------------------------------------
 
 _RESULT_CACHE: Optional[Tuple[float, List[TrendStock]]] = None
-_RESULT_TTL = 600
+_RESULT_TTL = 1800
 
 
 def _compute_trend_stocks() -> List[TrendStock]:
-    phase3 = _build_phase3_candidates()
-    if not phase3:
+    universe = _get_universe()
+    if not universe:
         return []
 
-    logger.info(f"阶段③命中 {len(phase3)} 只候选股，开始阶段①②历史行情校验...")
+    logger.info(f"开始全市场趋势扫描，股票池 {len(universe)} 只...")
     t0 = time.time()
-    breakouts = _batch_detect_breakout(list(phase3.keys()))
-    logger.info(f"阶段①②校验完成，用时 {time.time() - t0:.1f}s，最终命中 {len(breakouts)} 只")
+    matches = _batch_check(universe)
+    logger.info(f"趋势扫描完成，用时 {time.time() - t0:.1f}s，命中 {len(matches)} 只")
 
     result: List[TrendStock] = []
-    for code, breakout in breakouts.items():
-        p3 = phase3[code]
+    for m in matches:
+        breakout = m["breakout"]
         result.append(TrendStock(
-            code=code,
-            name=p3["name"],
-            price=p3.get("price"),
-            change_pct=p3["change_pct"],
+            code=m["code"],
+            name=m["name"],
+            price=m.get("price"),
+            change_pct=m["change_pct"],
             breakout_date=breakout["d_date"],
             breakout_volume=breakout["d_volume"],
             baseline_avg_volume=breakout["baseline_avg"],
-            fund_flow_window=p3["window"],
-            fund_flow_change_pct=p3["change_pct"],
-            fund_flow_main_inflow=p3["main_inflow"],
+            range_window=m["range_window"],
+            range_change_pct=m["range_change_pct"],
             description=(
-                f"{breakout['d_date']} 放量启动（{p3['window']}资金净流入 "
-                f"{p3['main_inflow']}亿，{p3['window']}涨跌幅 {p3['change_pct']}%）"
+                f"{breakout['d_date']} 放量启动，{m['range_window']}累计涨跌幅 "
+                f"{m['range_change_pct']}%（横盘）"
             ),
         ))
 
-    result.sort(key=lambda s: s.fund_flow_main_inflow, reverse=True)
+    result.sort(key=lambda s: s.breakout_date, reverse=True)
     return result
 
 
 @router.get("/candidates", response_model=List[TrendStock])
 async def get_trend_candidates():
     """
-    获取「趋势」信号候选股（放量启动 + 持续放量 + 横盘资金净流入）
-    结果按当前交易日缓存 10 分钟，避免重复触发全市场扫描。
+    获取「趋势」信号候选股（放量启动 + 持续放量 + 横盘）
+    结果缓存 30 分钟，避免重复触发全市场扫描。
     """
     global _RESULT_CACHE
     now = time.time()

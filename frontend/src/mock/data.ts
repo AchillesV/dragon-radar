@@ -1303,19 +1303,19 @@ export const mockTrendStocks: TrendStock[] = [
   {
     code: '002407', name: '多氟多', price: 18.32, changePct: 3.21, industry: '化学制品',
     breakoutDate: '2026-07-21', breakoutVolume: 209293, baselineAvgVolume: 78621,
-    fundFlowWindow: '5日', fundFlowChangePct: 4.6, fundFlowMainInflow: 1.82,
-    description: '2026-07-21 放量启动（5日资金净流入 1.82亿，5日涨跌幅 4.6%）',
+    rangeWindow: '5日', rangeChangePct: 4.6,
+    description: '2026-07-21 放量启动，5日累计涨跌幅 4.6%（横盘）',
   },
   {
-    code: '300033', name: '同花顺', price: 156.8, changePct: -1.05, industry: '软件服务',
+    code: '600588', name: '用友网络', price: 15.68, changePct: -1.05, industry: '软件服务',
     breakoutDate: '2026-07-22', breakoutVolume: 164803, baselineAvgVolume: 55201,
-    fundFlowWindow: '3日', fundFlowChangePct: -2.1, fundFlowMainInflow: 0.63,
-    description: '2026-07-22 放量启动（3日资金净流入 0.63亿，3日涨跌幅 -2.1%）',
+    rangeWindow: '3日', rangeChangePct: -2.1,
+    description: '2026-07-22 放量启动，3日累计涨跌幅 -2.1%（横盘）',
   },
   {
     code: '000977', name: '浪潮信息', price: 42.15, changePct: 2.87, industry: '计算机设备',
     breakoutDate: '2026-07-20', breakoutVolume: 391550, baselineAvgVolume: 132430,
-    fundFlowWindow: '10日', fundFlowChangePct: 6.8, fundFlowMainInflow: 3.15,
-    description: '2026-07-20 放量启动（10日资金净流入 3.15亿，10日涨跌幅 6.8%）',
+    rangeWindow: '10日', rangeChangePct: 6.8,
+    description: '2026-07-20 放量启动，10日累计涨跌幅 6.8%（横盘）',
   },
 ];
