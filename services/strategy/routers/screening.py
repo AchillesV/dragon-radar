@@ -223,9 +223,18 @@ def _fetch_real_candidates(feature_ids: List[str]) -> Optional[List[CandidateSto
     # code → { base fields, features: Set[str], lianban_count: int }
     registry: Dict[str, dict] = {}
 
+    def _is_qualified(code: str, name: str) -> bool:
+        if code.startswith("300") or code.startswith("301"):
+            return False
+        if "ST" in name.upper():
+            return False
+        return True
+
     def register(row, features: Set[str], lianban: int = 1):
         base = _row_to_base(row)
         code = base["code"]
+        if not _is_qualified(code, base["name"]):
+            return
         if code not in registry:
             registry[code] = {**base, "features": set(), "lianban_count": lianban}
         registry[code]["features"].update(features)

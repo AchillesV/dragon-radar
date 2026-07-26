@@ -29,6 +29,7 @@ class MarketOverview(BaseModel):
     total_amount: float          # 单位：万亿
     average_turnover: float
     sentiment_index: float       # 0-100
+    market_status: str = "closed"  # pre | trading | closed
 
 
 class SectorRank(BaseModel):
