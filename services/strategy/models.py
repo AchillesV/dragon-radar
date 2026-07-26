@@ -51,7 +51,8 @@ class TrendStock(BaseModel):
     code: str
     name: str
     price: Optional[float] = None
-    change_pct: float
+    change: Optional[float] = None        # 今日涨跌额
+    change_pct: float                     # 今日涨跌幅（百分比）
     industry: Optional[str] = None
     breakout_date: str              # 放量日 D
     breakout_volume: float

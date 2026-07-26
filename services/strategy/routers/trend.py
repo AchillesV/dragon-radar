@@ -160,11 +160,20 @@ def _check_one(code: str, name: str) -> Optional[dict]:
     if not range_match:
         return None
 
+    # 计算每日涨跌额和涨跌幅
+    daily_change = None
+    daily_change_pct = 0.0
+    if len(closes) >= 2:
+        daily_change = round(closes[-1] - closes[-2], 2)
+        if closes[-2] > 0:
+            daily_change_pct = round((closes[-1] / closes[-2] - 1) * 100, 2)
+
     return {
         "code": code,
         "name": name,
         "price": closes[-1] if closes else None,
-        "change_pct": range_match["change_pct"],
+        "change": daily_change,
+        "change_pct": daily_change_pct,
         "breakout": breakout,
         "range_window": range_match["window"],
         "range_change_pct": range_match["change_pct"],
@@ -210,6 +219,7 @@ def _compute_trend_stocks() -> List[TrendStock]:
             code=m["code"],
             name=m["name"],
             price=m.get("price"),
+            change=m.get("change"),
             change_pct=m["change_pct"],
             breakout_date=breakout["d_date"],
             breakout_volume=breakout["d_volume"],

@@ -8,8 +8,9 @@ import {
   SettingOutlined,
   DownloadOutlined,
   BarChartOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
-import type { StockRow, AnomalyType, BulkAnalysisResult } from '../../types';
+import type { StockRow, AnomalyType, BulkAnalysisResult, TrendStock } from '../../types';
 import { COLORS } from '../../constants/colors';
 import { formatAmount, formatChangePct, formatMarketCap } from '../../utils/format';
 import TrendBadge from '../common/TrendBadge';
@@ -21,11 +22,42 @@ import { generateStockReport, fetchBulkAnalysis } from '../../api/client';
 import { useAppStore } from '../../store';
 
 interface StockTableProps {
-  stocks: StockRow[];
+  // Accept both StockRow[] and TrendStock[] data types
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  stocks: any[];
   loading?: boolean;
-  mode?: 'screening' | 'anomaly';
+  mode?: 'screening' | 'anomaly' | 'trend';
   anomalyType?: AnomalyType;
   showOperationGuide?: boolean;
+}
+
+// ── 复制工具函数 ──
+function copyToClipboard(text: string, label: string) {
+  navigator.clipboard.writeText(text).then(
+    () => message.success(`${label} 已复制`),
+    () => message.error('复制失败'),
+  );
+}
+
+/** 股票代码行内复制图标 */
+function CopyCodeIcon({ code }: { code: string }) {
+  return (
+    <CopyOutlined
+      style={{
+        fontSize: 11,
+        color: COLORS.textMuted,
+        cursor: 'pointer',
+        opacity: 0.6,
+        transition: 'opacity 0.2s',
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        copyToClipboard(code, `代码 ${code}`);
+      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.6'; }}
+    />
+  );
 }
 
 const actionColors: Record<string, string> = {
@@ -38,14 +70,22 @@ const actionColors: Record<string, string> = {
 
 const OPTIONAL_COLUMNS = ['pe', 'marketCap', 'description', 'operationGuide'];
 
+// ── 格式化成交量 ──
+function formatVolume(v: number): string {
+  if (v >= 100000000) return `${(v / 100000000).toFixed(2)}亿`;
+  if (v >= 10000) return `${(v / 10000).toFixed(1)}万`;
+  return v.toFixed(0);
+}
+
 export default function StockTable({
   stocks: initialStocks,
   loading,
+  mode = 'screening',
   showOperationGuide = false,
 }: StockTableProps) {
   const { hiddenColumns, toggleColumn } = useAppStore();
   const isMobile = useIsMobile();
-  const [stocks, setStocks] = useState<StockRow[]>(initialStocks);
+  const [stocks, setStocks] = useState<unknown[]>(initialStocks);
   const [reportModal, setReportModal] = useState<{
     open: boolean;
     report: StockRow['report'] | null;
@@ -58,28 +98,37 @@ export default function StockTable({
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const isTrendMode = mode === 'trend';
+
   useEffect(() => {
     setStocks(initialStocks);
-    setCurrentPage(1); // 数据刷新时回到第一页
+    setCurrentPage(1);
   }, [initialStocks]);
 
   const handleAnalyze = useCallback(async (record: StockRow) => {
-    setStocks((prev) =>
-      prev.map((s) => (s.code === record.code ? { ...s, analysisLoading: true } : s))
+    setStocks((prev: unknown[]) =>
+      prev.map((s) => {
+        const r = s as StockRow;
+        return r.code === record.code ? { ...r, analysisLoading: true } : s;
+      })
     );
     try {
       const report = await generateStockReport(record.code, record.name);
-      setStocks((prev) =>
-        prev.map((s) =>
-          s.code === record.code
-            ? { ...s, analysisLoading: false, reportGenerated: true, report }
-            : s
-        )
+      setStocks((prev: unknown[]) =>
+        prev.map((s) => {
+          const r = s as StockRow;
+          return r.code === record.code
+            ? { ...r, analysisLoading: false, reportGenerated: true, report }
+            : s;
+        })
       );
       message.success(`${record.name} 分析完成`);
     } catch {
-      setStocks((prev) =>
-        prev.map((s) => (s.code === record.code ? { ...s, analysisLoading: false } : s))
+      setStocks((prev: unknown[]) =>
+        prev.map((s) => {
+          const r = s as StockRow;
+          return r.code === record.code ? { ...r, analysisLoading: false } : s;
+        })
       );
       message.error('分析失败，请重试');
     }
@@ -88,7 +137,7 @@ export default function StockTable({
   const handleBulkAnalysis = async () => {
     setBulkModal({ open: true, result: null, loading: true });
     try {
-      const codes = stocks.map((s) => s.code);
+      const codes = (stocks as StockRow[]).map((s) => s.code);
       const result = await fetchBulkAnalysis(codes);
       setBulkModal({ open: true, result, loading: false });
     } catch {
@@ -98,8 +147,34 @@ export default function StockTable({
   };
 
   const handleExportCSV = () => {
+    if (isTrendMode) {
+      const trendStocks = stocks as TrendStock[];
+      const headers = ['代码', '名称', '现价', '涨跌幅', '涨跌额', '放量日', '量比', '横盘窗口', '横盘涨幅'];
+      const rows = trendStocks.map((s) => [
+        s.code,
+        s.name,
+        s.price?.toFixed(2) ?? '-',
+        formatChangePct(s.changePct),
+        s.change?.toFixed(2) ?? '-',
+        s.breakoutDate,
+        s.baselineAvgVolume > 0 ? `${(s.breakoutVolume / s.baselineAvgVolume).toFixed(1)}x` : '-',
+        s.rangeWindow,
+        `${s.rangeChangePct >= 0 ? '+' : ''}${s.rangeChangePct.toFixed(2)}%`,
+      ]);
+      const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `趋势信号_${new Date().toLocaleDateString()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const stockRows = stocks as StockRow[];
     const headers = ['代码', '名称', '价格', '涨跌幅', '成交额(亿)', '换手率', '市值(亿)'];
-    const rows = stocks.map((s) => [
+    const rows = stockRows.map((s) => [
       s.code,
       s.name,
       s.price.toFixed(2),
@@ -118,6 +193,83 @@ export default function StockTable({
     URL.revokeObjectURL(url);
   };
 
+  // ── 趋势模式专属列 ──
+  const trendColumns: ColumnType<TrendStock>[] = [
+    {
+      title: '股票',
+      key: 'stock',
+      width: 130,
+      fixed: 'left' as const,
+      render: (_: unknown, record: TrendStock) => (
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.textPrimary }}>{record.name}</div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 11, color: COLORS.textMuted }}>{record.code}</span>
+            <CopyCodeIcon code={record.code} />
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: '现价/今日涨跌',
+      key: 'price',
+      width: 120,
+      render: (_: unknown, record: TrendStock) => (
+        <div>
+          <div style={{ fontVariantNumeric: 'tabular-nums', color: COLORS.textPrimary }}>
+            {record.price?.toFixed(2) ?? '-'}
+          </div>
+          {record.change !== undefined && (
+            <div style={{ color: record.change >= 0 ? COLORS.rise : COLORS.fall, fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
+              {record.change >= 0 ? '+' : ''}{record.change.toFixed(2)}
+            </div>
+          )}
+          <div style={{ color: record.changePct >= 0 ? COLORS.rise : COLORS.fall, fontSize: 12 }}>
+            {record.changePct >= 0 ? '+' : ''}{record.changePct.toFixed(2)}%
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: '放量启动日',
+      key: 'breakout',
+      width: 180,
+      render: (_: unknown, record: TrendStock) => {
+        const ratio = record.baselineAvgVolume > 0 ? record.breakoutVolume / record.baselineAvgVolume : 0;
+        return (
+          <div>
+            <div style={{ color: COLORS.textSecondary, fontSize: 12 }}>{record.breakoutDate}</div>
+            <Tooltip title={`放量当日成交量 ${formatVolume(record.breakoutVolume)}，放量前5日基准均量 ${formatVolume(record.baselineAvgVolume)}`}>
+              <Tag color="volcano" style={{ marginTop: 2, fontSize: 11 }}>量比 {ratio.toFixed(1)}x</Tag>
+            </Tooltip>
+          </div>
+        );
+      },
+    },
+    {
+      title: '横盘',
+      key: 'range',
+      width: 140,
+      render: (_: unknown, record: TrendStock) => (
+        <div>
+          <Tag color="blue" style={{ fontSize: 11 }}>{record.rangeWindow}</Tag>
+          <div style={{ fontSize: 11, marginTop: 4, color: COLORS.textSecondary }}>
+            累计涨跌幅 {record.rangeChangePct >= 0 ? '+' : ''}{record.rangeChangePct.toFixed(2)}%
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: '说明',
+      key: 'description',
+      width: 200,
+      render: (_: unknown, record: TrendStock) => (
+        <span style={{ fontSize: 11, color: COLORS.textMuted }}>{record.description ?? '-'}</span>
+      ),
+    },
+  ];
+
+  // ── 常规模式列（screening / anomaly） ──
   const baseColumns: ColumnType<StockRow>[] = [
     {
       title: '股票',
@@ -134,8 +286,9 @@ export default function StockTable({
             <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.textPrimary }}>
               {record.name}
             </div>
-            <div style={{ fontSize: 11, color: COLORS.textMuted }}>
-              {record.code} · {record.market}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 11, color: COLORS.textMuted }}>{record.code} · {record.market}</span>
+              <CopyCodeIcon code={record.code} />
             </div>
             {record.lianbanCount && record.lianbanCount > 0 ? (
               <Badge
@@ -303,7 +456,7 @@ export default function StockTable({
     width: 140,
     fixed: 'right' as const,
     render: (_: unknown, record: StockRow) => {
-      const current = stocks.find((s) => s.code === record.code) ?? record;
+      const current = (stocks as StockRow[]).find((s) => s.code === record.code) ?? record;
       return (
         <Space size={6}>
           <Button
@@ -343,18 +496,25 @@ export default function StockTable({
     },
   };
 
-  // Build final columns
-  const visibleOptional = optionalColumns.filter(
-    (col) => !hiddenColumns.includes(String(col.key))
-  );
-  const columns: ColumnType<StockRow>[] = [
-    ...baseColumns,
-    ...visibleOptional,
-    ...(showOperationGuide && !hiddenColumns.includes('operationGuide') ? [guideColumn] : []),
-    ...(isMobile ? [] : [actionColumn]),
-  ];
+  // Build final columns based on mode
+  let columns: ColumnType<Record<string, unknown>>[];
 
-  const columnSettingsItems = OPTIONAL_COLUMNS.map((col) => {
+  if (isTrendMode) {
+    columns = trendColumns as unknown as ColumnType<Record<string, unknown>>[];
+  } else {
+    const visibleOptional = optionalColumns.filter(
+      (col) => !hiddenColumns.includes(String(col.key))
+    );
+    columns = [
+      ...baseColumns,
+      ...visibleOptional,
+      ...(showOperationGuide && !hiddenColumns.includes('operationGuide') ? [guideColumn] : []),
+      ...(isMobile ? [] : [actionColumn]),
+    ] as unknown as ColumnType<Record<string, unknown>>[];
+  }
+
+  // Column settings (only for non-trend)
+  const columnSettingsItems = isTrendMode ? [] : OPTIONAL_COLUMNS.map((col) => {
     const labels: Record<string, string> = {
       pe: 'PE/PB',
       marketCap: '市值',
@@ -394,29 +554,31 @@ export default function StockTable({
           >
             导出CSV
           </Button>
-          <Dropdown
-            menu={{ items: columnSettingsItems }}
-            trigger={['click']}
-            overlayStyle={{ minWidth: 160 }}
-          >
-            <Button
-              size="small"
-              icon={<SettingOutlined />}
-              style={{ borderColor: '#3d4255', color: COLORS.textMuted, background: 'transparent', fontSize: 12 }}
+          {!isTrendMode && (
+            <Dropdown
+              menu={{ items: columnSettingsItems }}
+              trigger={['click']}
+              overlayStyle={{ minWidth: 160 }}
             >
-              列设置
-            </Button>
-          </Dropdown>
+              <Button
+                size="small"
+                icon={<SettingOutlined />}
+                style={{ borderColor: '#3d4255', color: COLORS.textMuted, background: 'transparent', fontSize: 12 }}
+              >
+                列设置
+              </Button>
+            </Dropdown>
+          )}
         </Space>
       </div>
 
-      <Table<StockRow>
+      <Table<Record<string, unknown>>
         columns={columns}
-        dataSource={stocks}
+        dataSource={stocks as Record<string, unknown>[]}
         rowKey="code"
         loading={loading}
         size="small"
-        scroll={{ x: 900 }}
+        scroll={{ x: isTrendMode ? 800 : 900 }}
         pagination={{
           current: currentPage,
           pageSize,
@@ -429,44 +591,43 @@ export default function StockTable({
             setPageSize(size);
           },
         }}
-        rowClassName={(record) =>
-          record.limitUp ? 'row-limit-up' : record.limitDown ? 'row-limit-down' : ''
-        }
         style={{ background: 'transparent' }}
       />
 
-      {/* Sticky bulk analysis button */}
-      <div
-        style={{
-          position: 'sticky',
-          bottom: 24,
-          display: 'flex',
-          justifyContent: 'center',
-          pointerEvents: 'none',
-          zIndex: 10,
-          marginTop: 8,
-        }}
-      >
-        <Button
-          type="primary"
-          size="large"
-          icon={<BarChartOutlined />}
-          onClick={handleBulkAnalysis}
+      {/* Sticky bulk analysis button (non-trend only) */}
+      {!isTrendMode && (
+        <div
           style={{
-            background: COLORS.chartRed,
-            borderColor: COLORS.chartRed,
-            borderRadius: 24,
-            padding: '0 32px',
-            height: 44,
-            fontSize: 14,
-            fontWeight: 600,
-            boxShadow: `0 4px 20px rgba(255,77,79,0.4)`,
-            pointerEvents: 'auto',
+            position: 'sticky',
+            bottom: 24,
+            display: 'flex',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+            zIndex: 10,
+            marginTop: 8,
           }}
         >
-          整体分析 ({stocks.length} 只)
-        </Button>
-      </div>
+          <Button
+            type="primary"
+            size="large"
+            icon={<BarChartOutlined />}
+            onClick={handleBulkAnalysis}
+            style={{
+              background: COLORS.chartRed,
+              borderColor: COLORS.chartRed,
+              borderRadius: 24,
+              padding: '0 32px',
+              height: 44,
+              fontSize: 14,
+              fontWeight: 600,
+              boxShadow: `0 4px 20px rgba(255,77,79,0.4)`,
+              pointerEvents: 'auto',
+            }}
+          >
+            整体分析 ({(stocks as StockRow[]).length} 只)
+          </Button>
+        </div>
+      )}
 
       {/* Modals */}
       <ReportModal

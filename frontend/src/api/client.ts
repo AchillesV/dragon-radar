@@ -304,6 +304,7 @@ function toTrendStock(raw: any): TrendStock {
     code: raw.code,
     name: raw.name,
     price: raw.price ?? undefined,
+    change: raw.change ?? undefined,
     changePct: raw.change_pct ?? raw.changePct ?? 0,
     industry: raw.industry ?? undefined,
     breakoutDate: raw.breakout_date ?? raw.breakoutDate ?? '',

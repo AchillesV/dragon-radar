@@ -1,19 +1,12 @@
 import { useState } from 'react';
-import { Table, Button, Tag, Tooltip } from 'antd';
-import type { ColumnType } from 'antd/es/table';
+import { Button } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTrendStocks } from '../hooks/useTrendData';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { COLORS } from '../constants/colors';
 import { LoadingState, EmptyState, ErrorState } from '../components/common/StatusStates';
-import type { TrendStock } from '../types';
-
-function formatVolume(v: number): string {
-  if (v >= 100000000) return `${(v / 100000000).toFixed(2)}亿`;
-  if (v >= 10000) return `${(v / 10000).toFixed(1)}万`;
-  return v.toFixed(0);
-}
+import StockTable from '../components/screening/StockTable';
 
 export default function Trend() {
   const { data: stocks, isLoading, isError, refetch } = useTrendStocks();
@@ -27,72 +20,6 @@ export default function Trend() {
     await refetch();
     setRefreshing(false);
   };
-
-  const columns: ColumnType<TrendStock>[] = [
-    {
-      title: '股票',
-      key: 'stock',
-      width: 130,
-      render: (_: unknown, record: TrendStock) => (
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.textPrimary }}>{record.name}</div>
-          <div style={{ fontSize: 11, color: COLORS.textMuted }}>{record.code}</div>
-        </div>
-      ),
-    },
-    {
-      title: '现价/今日涨跌',
-      key: 'price',
-      width: 110,
-      render: (_: unknown, record: TrendStock) => (
-        <div>
-          <div style={{ fontVariantNumeric: 'tabular-nums', color: COLORS.textPrimary }}>
-            {record.price?.toFixed(2) ?? '-'}
-          </div>
-          <div style={{ color: record.changePct >= 0 ? COLORS.rise : COLORS.fall, fontSize: 12 }}>
-            {record.changePct >= 0 ? '+' : ''}{record.changePct.toFixed(2)}%
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: '放量启动日',
-      key: 'breakout',
-      width: 160,
-      render: (_: unknown, record: TrendStock) => {
-        const ratio = record.baselineAvgVolume > 0 ? record.breakoutVolume / record.baselineAvgVolume : 0;
-        return (
-          <div>
-            <div style={{ color: COLORS.textSecondary, fontSize: 12 }}>{record.breakoutDate}</div>
-            <Tooltip title={`放量当日成交量 ${formatVolume(record.breakoutVolume)}，放量前5日基准均量 ${formatVolume(record.baselineAvgVolume)}`}>
-              <Tag color="volcano" style={{ marginTop: 2 }}>量比 {ratio.toFixed(1)}x</Tag>
-            </Tooltip>
-          </div>
-        );
-      },
-    },
-    {
-      title: '横盘',
-      key: 'range',
-      width: 140,
-      render: (_: unknown, record: TrendStock) => (
-        <div>
-          <Tag color="blue">{record.rangeWindow}</Tag>
-          <div style={{ fontSize: 12, marginTop: 4, color: COLORS.textSecondary }}>
-            累计涨跌幅 {record.rangeChangePct >= 0 ? '+' : ''}{record.rangeChangePct.toFixed(2)}%
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: '说明',
-      dataIndex: 'description',
-      key: 'description',
-      render: (desc: string) => (
-        <span style={{ fontSize: 12, color: COLORS.textMuted }}>{desc ?? '-'}</span>
-      ),
-    },
-  ];
 
   return (
     <div>
@@ -132,14 +59,10 @@ export default function Trend() {
       ) : !stocks || stocks.length === 0 ? (
         <EmptyState description="今日暂无符合条件的股票" height={300} />
       ) : (
-        <Table<TrendStock>
-          columns={columns}
-          dataSource={stocks}
-          rowKey="code"
-          size="small"
-          scroll={{ x: 700 }}
-          pagination={{ pageSize: 20, showTotal: (total) => `共 ${total} 条` }}
-          style={{ background: 'transparent' }}
+        <StockTable
+          stocks={stocks}
+          mode="trend"
+          loading={false}
         />
       )}
 

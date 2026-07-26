@@ -113,7 +113,8 @@ export interface TrendStock {
   code: string;
   name: string;
   price?: number;
-  changePct: number;
+  change?: number;            // 今日涨跌额
+  changePct: number;          // 今日涨跌幅（百分比）
   industry?: string;
   breakoutDate: string;        // 放量日 D
   breakoutVolume: number;
