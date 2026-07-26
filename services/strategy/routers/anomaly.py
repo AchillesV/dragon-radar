@@ -99,6 +99,29 @@ def _get_prev_zt_pool() -> Optional[pd.DataFrame]:
     return None
 
 
+# ─── 过滤函数（创业板/ST） ────────────────────────────────────
+
+def _is_qualified(code: str, name: str) -> bool:
+    """过滤创业板（300/301开头）和ST股票"""
+    if code.startswith("300") or code.startswith("301"):
+        return False
+    if "ST" in name.upper():
+        return False
+    return True
+
+
+def _filter_df(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    """过滤 DataFrame 中的创业板和ST股票"""
+    if df is None or df.empty:
+        return df
+    code_col = next((c for c in ("代码", "code") if c in df.columns), None)
+    name_col = next((c for c in ("名称", "name") if c in df.columns), None)
+    if not code_col or not name_col:
+        return df
+    mask = df.apply(lambda r: _is_qualified(str(r[code_col]), str(r[name_col])), axis=1)
+    return df[mask].reset_index(drop=True)
+
+
 # ─── 列名安全访问 ──────────────────────────────────────────
 
 def _col(df: pd.DataFrame, *names: str) -> Optional[str]:
@@ -540,8 +563,8 @@ def _get_real_stocks(anomaly_type: str) -> Optional[List[AnomalyStock]]:
     if cached and (_now() - cached["ts"]) < _CACHE_TTL:
         return cached["stocks"]
 
-    zt_df     = _get_zt_pool()
-    strong_df = _get_strong_pool()
+    zt_df     = _filter_df(_get_zt_pool())
+    strong_df = _filter_df(_get_strong_pool())
 
     stocks: Optional[List[AnomalyStock]] = None
     try:
@@ -562,7 +585,7 @@ def _get_real_stocks(anomaly_type: str) -> Optional[List[AnomalyStock]]:
         elif anomaly_type == "eod_rush":
             stocks = _detect_eod_rush(strong_df)
         elif anomaly_type == "weak_to_strong":
-            prev_df = _get_prev_zt_pool()
+            prev_df = _filter_df(_get_prev_zt_pool())
             stocks = _detect_weak_to_strong(zt_df, prev_df)
         elif anomaly_type == "reverse_limit":
             stocks = _detect_reverse_limit(zt_df)

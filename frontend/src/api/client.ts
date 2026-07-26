@@ -46,11 +46,8 @@ function delay(ms = 300): Promise<void> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toMarketOverview(raw: any): MarketOverview {
   const now = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-  const h = new Date().getHours();
   const marketStatus: 'pre' | 'trading' | 'closed' =
-    h < 9 || (h === 9 && new Date().getMinutes() < 30) ? 'pre'
-    : h >= 15 ? 'closed'
-    : 'trading';
+    (raw.market_status as 'pre' | 'trading' | 'closed') ?? 'closed';
 
   return {
     date: raw.date ?? new Date().toISOString().slice(0, 10),

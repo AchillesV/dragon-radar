@@ -18,6 +18,19 @@ def _today_str() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
+def _get_market_status() -> str:
+    """A股市场状态：pre(盘前) | trading(交易中) | closed(已收盘)"""
+    now = datetime.now()
+    if now.weekday() >= 5:  # 周末
+        return "closed"
+    t = now.hour * 60 + now.minute
+    if 9 * 60 <= t < 9 * 60 + 30:
+        return "pre"
+    if (9 * 60 + 30 <= t <= 11 * 60 + 30) or (13 * 60 <= t <= 15 * 60):
+        return "trading"
+    return "closed"
+
+
 def _mock_overview() -> MarketOverview:
     return MarketOverview(
         date=_today_str(),
@@ -29,6 +42,7 @@ def _mock_overview() -> MarketOverview:
         total_amount=2.87,
         average_turnover=2.34,
         sentiment_index=68.5,
+        market_status=_get_market_status(),
     )
 
 
@@ -216,6 +230,7 @@ async def get_market_overview(request: Request):
             total_amount=total_amount,
             average_turnover=2.34,
             sentiment_index=round(rise / (rise + fall) * 100 if (rise + fall) > 0 else 50, 1),
+            market_status=_get_market_status(),
         )
     except Exception as e:
         logger.warning(f"market overview fetch error: {e}")
@@ -281,17 +296,23 @@ async def get_fund_flow(top_n: int = Query(10, ge=1, le=50)):
         import akshare as ak
         df = ak.stock_sector_fund_flow_rank(indicator="今日")
         if df is not None and not df.empty:
-            df = df.sort_values("今日净流入额", ascending=False)
-            result = []
-            for _, row in df.head(top_n).iterrows():
-                result.append(FundFlowItem(
-                    name=str(row.get("名称", "")),
-                    net_inflow=float(row.get("今日净流入额", 0)) / 1e8,
-                    main_inflow=float(row.get("今日主力净流入额", 0)) / 1e8,
-                    retail_inflow=float(row.get("今日散户净流入额", 0)) / 1e8,
-                    leading_stock=str(row.get("今日涨幅最大股", "")),
-                ))
-            return result
+            net_col  = next((c for c in ("今日净流入额", "净流入额", "净额") if c in df.columns), None)
+            main_col = next((c for c in ("今日主力净流入额", "主力净流入额") if c in df.columns), None)
+            ret_col  = next((c for c in ("今日散户净流入额", "散户净流入额") if c in df.columns), None)
+            lead_col = next((c for c in ("今日涨幅最大股", "涨幅最大股") if c in df.columns), None)
+            name_col = next((c for c in ("名称", "板块名称") if c in df.columns), None)
+            if net_col and name_col:
+                df = df.sort_values(net_col, ascending=False)
+                result = []
+                for _, row in df.head(top_n).iterrows():
+                    result.append(FundFlowItem(
+                        name=str(row.get(name_col, "")),
+                        net_inflow=float(row.get(net_col, 0)) / 1e8,
+                        main_inflow=float(row.get(main_col, 0)) / 1e8 if main_col else 0.0,
+                        retail_inflow=float(row.get(ret_col, 0)) / 1e8 if ret_col else 0.0,
+                        leading_stock=str(row.get(lead_col, "")) if lead_col else None,
+                    ))
+                return result
     except Exception as e:
         logger.warning(f"akshare fund_flow error: {e}")
 
@@ -306,10 +327,16 @@ async def get_amount_history():
         df = ak.stock_market_activity_legu()
         if df is not None and not df.empty:
             result = []
+            # Try multiple column name variants
+            amt_col = next((c for c in ("成交额", "总成交额", "amount") if c in df.columns), None)
+            date_col = next((c for c in ("日期", "date", "交易日") if c in df.columns), None)
             for _, row in df.tail(20).iterrows():
+                raw = float(row.get(amt_col, 0) if amt_col else 0)
+                # legulegu 返回单位为亿元，转万亿 ÷ 10000
+                amt = raw / 10000 if raw > 100 else raw
                 result.append(DailyAmount(
-                    date=str(row.get("日期", "")),
-                    amount=float(row.get("成交额", 0)) / 1e12,
+                    date=str(row.get(date_col, "") if date_col else ""),
+                    amount=round(amt, 3),
                 ))
             if result:
                 return result

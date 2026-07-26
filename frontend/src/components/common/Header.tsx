@@ -1,9 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import { Space } from 'antd';
+import { Space, Button, Tooltip } from 'antd';
+import { BulbOutlined, BulbFilled } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { COLORS } from '../../constants/colors';
 import { useMarketOverview } from '../../hooks/useMarketData';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { useTheme } from '../../hooks/useTheme';
 
 const navItems = [
   { path: '/', label: '行情总览' },
@@ -28,12 +30,14 @@ export default function Header() {
   const { data: overview } = useMarketOverview();
   const marketStatus = overview?.marketStatus ?? 'closed';
   const isMobile = useIsMobile();
+  const { theme: currentTheme, toggle } = useTheme();
+  const isDark = currentTheme === 'dark';
 
   return (
     <header
       style={{
         background: COLORS.bgPrimary,
-        borderBottom: `1px solid #252836`,
+        borderBottom: `1px solid var(--c-border)`,
         padding: isMobile ? '0 16px' : '0 24px',
         height: 56,
         display: 'flex',
@@ -62,7 +66,7 @@ export default function Header() {
             style={{
               fontSize: 11,
               color: COLORS.textMuted,
-              border: `1px solid ${COLORS.textMuted}`,
+              border: `1px solid var(--c-text-muted)`,
               borderRadius: 3,
               padding: '1px 5px',
               letterSpacing: 1,
@@ -99,8 +103,17 @@ export default function Header() {
         </nav>
       )}
 
-      {/* Right: date + status */}
-      <Space size={isMobile ? 8 : 16}>
+      {/* Right: theme toggle + date + status */}
+      <Space size={isMobile ? 6 : 16}>
+        <Tooltip title={isDark ? '切换亮色' : '切换暗色'}>
+          <Button
+            type="text"
+            size="small"
+            icon={isDark ? <BulbOutlined /> : <BulbFilled />}
+            onClick={toggle}
+            style={{ color: COLORS.textSecondary }}
+          />
+        </Tooltip>
         {!isMobile && (
           <span style={{ color: COLORS.textSecondary, fontSize: 13 }}>
             {dayjs().format('YYYY-MM-DD')}

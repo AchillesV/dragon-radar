@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Table, Button, Popover, Tag, Badge, Tooltip, Space, Dropdown, Checkbox, message } from 'antd';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import type { ColumnType } from 'antd/es/table';
 import {
   LineChartOutlined,
@@ -43,6 +44,7 @@ export default function StockTable({
   showOperationGuide = false,
 }: StockTableProps) {
   const { hiddenColumns, toggleColumn } = useAppStore();
+  const isMobile = useIsMobile();
   const [stocks, setStocks] = useState<StockRow[]>(initialStocks);
   const [reportModal, setReportModal] = useState<{
     open: boolean;
@@ -349,7 +351,7 @@ export default function StockTable({
     ...baseColumns,
     ...visibleOptional,
     ...(showOperationGuide && !hiddenColumns.includes('operationGuide') ? [guideColumn] : []),
-    actionColumn,
+    ...(isMobile ? [] : [actionColumn]),
   ];
 
   const columnSettingsItems = OPTIONAL_COLUMNS.map((col) => {

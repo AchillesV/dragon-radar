@@ -1,10 +1,12 @@
 import ReactECharts from 'echarts-for-react';
 import { COLORS } from '../../constants/colors';
 import { useFundFlow } from '../../hooks/useMarketData';
+import { useTheme } from '../../hooks/useTheme';
 import { LoadingState } from '../common/StatusStates';
 import type { FundFlowItem } from '../../types';
+import type { RawColors } from '../../constants/colors';
 
-function buildOption(data: FundFlowItem[]) {
+function buildOption(data: FundFlowItem[], c: RawColors) {
   const sorted = [...data].sort((a, b) => a.amount - b.amount);
   const names = sorted.map((d) => d.name);
   const amounts = sorted.map((d) => d.amount);
@@ -15,18 +17,18 @@ function buildOption(data: FundFlowItem[]) {
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'none' },
-      backgroundColor: '#252836',
-      borderColor: '#3d4255',
-      textStyle: { color: COLORS.textPrimary, fontSize: 12 },
+      backgroundColor: c.bgHover,
+      borderColor: c.borderLight,
+      textStyle: { color: c.textPrimary, fontSize: 12 },
       formatter: (params: Array<{ name: string; value: number }>) => {
         const p = params[0];
         const item = data.find((d) => d.name === p.name);
         return `<div style="padding:4px 8px">
           <b>${p.name}</b><br/>
-          净流入：<span style="color:${p.value >= 0 ? COLORS.rise : COLORS.fall}">
+          净流入：<span style="color:${p.value >= 0 ? c.rise : c.fall}">
             ${p.value >= 0 ? '+' : ''}${p.value.toFixed(1)}亿
           </span><br/>
-          涨跌幅：<span style="color:${(item?.changePct ?? 0) >= 0 ? COLORS.rise : COLORS.fall}">
+          涨跌幅：<span style="color:${(item?.changePct ?? 0) >= 0 ? c.rise : c.fall}">
             ${(item?.changePct ?? 0) >= 0 ? '+' : ''}${(item?.changePct ?? 0).toFixed(2)}%
           </span>
         </div>`;
@@ -34,10 +36,10 @@ function buildOption(data: FundFlowItem[]) {
     },
     xAxis: {
       type: 'value',
-      axisLine: { lineStyle: { color: '#3d4255' } },
-      splitLine: { lineStyle: { color: '#252836', type: 'dashed' } },
+      axisLine: { lineStyle: { color: c.borderLight } },
+      splitLine: { lineStyle: { color: c.border, type: 'dashed' } },
       axisLabel: {
-        color: COLORS.textMuted,
+        color: c.textMuted,
         fontSize: 11,
         formatter: (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(0)}亿`,
       },
@@ -47,7 +49,7 @@ function buildOption(data: FundFlowItem[]) {
       data: names,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: COLORS.textSecondary, fontSize: 12 },
+      axisLabel: { color: c.textSecondary, fontSize: 12 },
     },
     series: [
       {
@@ -55,7 +57,7 @@ function buildOption(data: FundFlowItem[]) {
         data: amounts.map((v) => ({
           value: v,
           itemStyle: {
-            color: v >= 0 ? COLORS.chartRed : COLORS.chartGreen,
+            color: v >= 0 ? c.chartRed : c.chartGreen,
             borderRadius: v >= 0 ? [0, 3, 3, 0] : [3, 0, 0, 3],
           },
           label: {
@@ -63,7 +65,7 @@ function buildOption(data: FundFlowItem[]) {
             position: v >= 0 ? 'right' : 'left',
             formatter: ({ value }: { value: number }) =>
               `${value >= 0 ? '+' : ''}${value.toFixed(1)}亿`,
-            color: v >= 0 ? COLORS.rise : COLORS.fall,
+            color: v >= 0 ? c.rise : c.fall,
             fontSize: 11,
           },
         })),
@@ -75,6 +77,7 @@ function buildOption(data: FundFlowItem[]) {
 
 export default function FundFlowChart() {
   const { data, isLoading } = useFundFlow();
+  const { rawColors } = useTheme();
 
   return (
     <div style={{ background: COLORS.bgCard, borderRadius: 8, padding: '16px 16px 8px' }}>
@@ -84,7 +87,7 @@ export default function FundFlowChart() {
       {isLoading ? (
         <LoadingState height={250} />
       ) : data ? (
-        <ReactECharts option={buildOption(data)} style={{ height: 250 }} />
+        <ReactECharts option={buildOption(data, rawColors)} style={{ height: 250 }} />
       ) : null}
     </div>
   );

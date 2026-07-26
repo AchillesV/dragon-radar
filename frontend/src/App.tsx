@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ConfigProvider, theme } from 'antd';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -11,6 +12,7 @@ import Screening from './pages/Screening';
 import Trend from './pages/Trend';
 import { COLORS } from './constants/colors';
 import { useIsMobile } from './hooks/useIsMobile';
+import { useTheme } from './hooks/useTheme';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,46 +25,56 @@ const queryClient = new QueryClient({
 
 export default function App() {
   const isMobile = useIsMobile();
+  const { theme: currentTheme, rawColors } = useTheme();
+  const isDark = currentTheme === 'dark';
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.remove('theme-light');
+    } else {
+      document.documentElement.classList.add('theme-light');
+    }
+  }, [isDark]);
 
   return (
     <QueryClientProvider client={queryClient}>
       <ConfigProvider
         locale={zhCN}
         theme={{
-          algorithm: theme.darkAlgorithm,
+          algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
           token: {
-            colorBgBase: COLORS.bgPrimary,
-            colorBgContainer: COLORS.bgCard,
-            colorBgElevated: COLORS.bgCard,
-            colorBorder: '#3d4255',
-            colorBorderSecondary: '#252836',
-            colorText: COLORS.textPrimary,
-            colorTextSecondary: COLORS.textSecondary,
-            colorPrimary: COLORS.chartRed,
+            colorBgBase: rawColors.bgPrimary,
+            colorBgContainer: rawColors.bgCard,
+            colorBgElevated: rawColors.bgCard,
+            colorBorder: rawColors.borderLight,
+            colorBorderSecondary: rawColors.border,
+            colorText: rawColors.textPrimary,
+            colorTextSecondary: rawColors.textSecondary,
+            colorPrimary: rawColors.chartRed,
             borderRadius: 6,
             fontFamily: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`,
           },
           components: {
             Table: {
-              colorBgContainer: COLORS.bgCard,
-              headerBg: '#252836',
-              headerColor: COLORS.textSecondary,
-              rowHoverBg: COLORS.bgHover,
-              borderColor: '#252836',
+              colorBgContainer: rawColors.bgCard,
+              headerBg: rawColors.border,
+              headerColor: rawColors.textSecondary,
+              rowHoverBg: rawColors.bgHover,
+              borderColor: rawColors.border,
               bodySortBg: 'transparent',
             },
             Modal: {
-              contentBg: COLORS.bgCard,
-              headerBg: COLORS.bgCard,
+              contentBg: rawColors.bgCard,
+              headerBg: rawColors.bgCard,
             },
             Select: {
-              optionSelectedBg: COLORS.bgHover,
+              optionSelectedBg: rawColors.bgHover,
             },
             Tabs: {
-              itemColor: COLORS.textSecondary,
-              itemActiveColor: COLORS.chartRed,
-              itemSelectedColor: COLORS.chartRed,
-              inkBarColor: COLORS.chartRed,
+              itemColor: rawColors.textSecondary,
+              itemActiveColor: rawColors.chartRed,
+              itemSelectedColor: rawColors.chartRed,
+              inkBarColor: rawColors.chartRed,
             },
           },
         }}
