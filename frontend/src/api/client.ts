@@ -309,16 +309,17 @@ function toTrendStock(raw: any): TrendStock {
     breakoutDate: raw.breakout_date ?? raw.breakoutDate ?? '',
     breakoutVolume: raw.breakout_volume ?? raw.breakoutVolume ?? 0,
     baselineAvgVolume: raw.baseline_avg_volume ?? raw.baselineAvgVolume ?? 0,
-    fundFlowWindow: raw.fund_flow_window ?? raw.fundFlowWindow ?? '5日',
-    fundFlowChangePct: raw.fund_flow_change_pct ?? raw.fundFlowChangePct ?? 0,
-    fundFlowMainInflow: raw.fund_flow_main_inflow ?? raw.fundFlowMainInflow ?? 0,
+    rangeWindow: raw.range_window ?? raw.rangeWindow ?? '5日',
+    rangeChangePct: raw.range_change_pct ?? raw.rangeChangePct ?? 0,
     description: raw.description ?? undefined,
   };
 }
 
 export async function fetchTrendStocks(): Promise<TrendStock[]> {
   if (USE_MOCK) { await delay(500); return mockTrendStocks; }
-  const res = await http.get('/screening/trend/candidates');
+  // 全市场逐只扫描，冷启动（缓存过期后第一次请求）耗时可达1分钟量级，
+  // 用独立的较长超时，不影响其他接口的默认 15s 超时
+  const res = await http.get('/screening/trend/candidates', { timeout: 90000 });
   return (res.data as unknown[]).map(toTrendStock);
 }
 

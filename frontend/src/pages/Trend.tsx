@@ -72,17 +72,14 @@ export default function Trend() {
       },
     },
     {
-      title: '横盘 + 资金净流入',
-      key: 'fundflow',
-      width: 180,
+      title: '横盘',
+      key: 'range',
+      width: 140,
       render: (_: unknown, record: TrendStock) => (
         <div>
-          <Tag color="blue">{record.fundFlowWindow}</Tag>
+          <Tag color="blue">{record.rangeWindow}</Tag>
           <div style={{ fontSize: 12, marginTop: 4, color: COLORS.textSecondary }}>
-            涨跌幅 {record.fundFlowChangePct >= 0 ? '+' : ''}{record.fundFlowChangePct.toFixed(2)}%
-          </div>
-          <div style={{ fontSize: 12, color: COLORS.rise }}>
-            主力净流入 {record.fundFlowMainInflow.toFixed(2)}亿
+            累计涨跌幅 {record.rangeChangePct >= 0 ? '+' : ''}{record.rangeChangePct.toFixed(2)}%
           </div>
         </div>
       ),
@@ -114,7 +111,7 @@ export default function Trend() {
             趋势
           </div>
           <div style={{ fontSize: 12, color: COLORS.textMuted }}>
-            放量启动 + 持续放量 + 横盘资金净流入 · 命中 {stocks?.length ?? 0} 只
+            放量启动 + 持续放量 + 横盘 · 命中 {stocks?.length ?? 0} 只
           </div>
         </div>
         <Button
@@ -159,8 +156,8 @@ export default function Trend() {
       >
         💡 <strong style={{ color: COLORS.textSecondary }}>规则说明</strong>：
         近10个交易日内某天成交量 ≥ 前5日均量 2.5 倍视为放量启动，此后每日成交量需维持在基准均量 1.5 倍以上；
-        同时最近 3/5/10 日中任意一个窗口需同时满足涨跌幅在 -10%~10% 之间且主力资金净流入为正。
-        剔除创业板（300/301开头）和 ST 股票。数据每 10 分钟刷新一次。
+        同时最近 3/5/10 日中任意一个窗口累计涨跌幅需在 -10%~10% 之间（横盘）。
+        剔除创业板（300/301开头）和 ST 股票。全市场逐只扫描，首次加载可能需要一分钟左右，结果缓存 30 分钟。
       </div>
     </div>
   );
