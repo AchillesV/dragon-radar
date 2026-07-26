@@ -31,12 +31,37 @@ interface StockTableProps {
   showOperationGuide?: boolean;
 }
 
-// ── 复制工具函数 ──
+// ── 复制工具函数（兼容 HTTP / HTTPS） ──
 function copyToClipboard(text: string, label: string) {
-  navigator.clipboard.writeText(text).then(
-    () => message.success(`${label} 已复制`),
-    () => message.error('复制失败'),
-  );
+  try {
+    // 优先使用 Clipboard API（需 HTTPS）
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(
+        () => message.success(`${label} 已复制`),
+        () => { throw new Error('clipboard API rejected'); },
+      );
+      return;
+    }
+  } catch {
+    // fall through to legacy method
+  }
+
+  // 降级方案：textarea + execCommand（HTTP 环境可用）
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    document.execCommand('copy');
+    message.success(`${label} 已复制`);
+  } catch {
+    message.error('复制失败，请手动复制');
+  }
+  document.body.removeChild(textarea);
 }
 
 /** 股票代码行内复制图标 */
