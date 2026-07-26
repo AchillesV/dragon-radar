@@ -556,6 +556,14 @@ export default function StockTable({
     };
   });
 
+  const handleCopyAll = () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const text = (stocks as any[])
+      .map((s) => `${s.name}(${s.code})`)
+      .join('\n');
+    copyToClipboard(text, `全部 ${stocks.length} 只股票`);
+  };
+
   return (
     <div style={{ position: 'relative' }}>
       {/* Table toolbar */}
@@ -570,7 +578,15 @@ export default function StockTable({
         <div style={{ fontSize: 13, color: COLORS.textSecondary }}>
           共 <span style={{ color: COLORS.textPrimary, fontWeight: 600 }}>{stocks.length}</span> 只
         </div>
-        <Space>
+        <Space wrap>
+          <Button
+            size="small"
+            icon={<CopyOutlined />}
+            onClick={handleCopyAll}
+            style={{ borderColor: COLORS.chartBlue, color: COLORS.chartBlue, background: 'rgba(24,144,255,0.08)', fontSize: 12 }}
+          >
+            复制全部
+          </Button>
           <Button
             size="small"
             icon={<DownloadOutlined />}
