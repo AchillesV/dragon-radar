@@ -174,7 +174,7 @@ export default function StockTable({
   const handleExportCSV = () => {
     if (isTrendMode) {
       const trendStocks = stocks as TrendStock[];
-      const headers = ['代码', '名称', '现价', '涨跌幅', '涨跌额', '放量日', '量比', '横盘窗口', '横盘涨幅'];
+      const headers = ['代码', '名称', '现价', '涨跌幅', '涨跌额', '放量日', '量比', '横盘窗口', '横盘涨幅', '连续入选天数'];
       const rows = trendStocks.map((s) => [
         s.code,
         s.name,
@@ -185,6 +185,7 @@ export default function StockTable({
         s.baselineAvgVolume > 0 ? `${(s.breakoutVolume / s.baselineAvgVolume).toFixed(1)}x` : '-',
         s.rangeWindow,
         `${s.rangeChangePct >= 0 ? '+' : ''}${s.rangeChangePct.toFixed(2)}%`,
+        String(s.streakDays),
       ]);
       const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
       const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
@@ -227,7 +228,25 @@ export default function StockTable({
       fixed: 'left' as const,
       render: (_: unknown, record: TrendStock) => (
         <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.textPrimary }}>{record.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.textPrimary }}>{record.name}</span>
+            {record.streakDays >= 3 && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: COLORS.chartRed,
+                  background: 'rgba(255,77,79,0.12)',
+                  border: `1px solid rgba(255,77,79,0.35)`,
+                  borderRadius: 4,
+                  padding: '0 4px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                连{record.streakDays}天
+              </span>
+            )}
+          </div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <span style={{ fontSize: 11, color: COLORS.textMuted }}>{record.code}</span>
             <CopyCodeIcon code={record.code} />

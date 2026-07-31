@@ -313,15 +313,26 @@ function toTrendStock(raw: any): TrendStock {
     rangeWindow: raw.range_window ?? raw.rangeWindow ?? '5日',
     rangeChangePct: raw.range_change_pct ?? raw.rangeChangePct ?? 0,
     description: raw.description ?? undefined,
+    streakDays: raw.streak_days ?? raw.streakDays ?? 1,
   };
 }
 
-export async function fetchTrendStocks(): Promise<TrendStock[]> {
+export async function fetchTrendStocks(date?: string): Promise<TrendStock[]> {
   if (USE_MOCK) { await delay(500); return mockTrendStocks; }
-  // 全市场逐只扫描，冷启动（缓存过期后第一次请求）耗时可达1分钟量级，
-  // 用独立的较长超时，不影响其他接口的默认 15s 超时
-  const res = await http.get('/screening/trend/candidates', { timeout: 90000 });
+  // 当天首次扫描时后端会触发全市场逐只扫描，耗时可达数分钟量级，
+  // 用独立的较长超时，不影响其他接口的默认 15s 超时；
+  // 指定 date 时后端只查本地数据库，正常响应很快，但沿用同一超时以简化调用方
+  const res = await http.get('/screening/trend/candidates', {
+    timeout: 180000,
+    params: date ? { date } : undefined,
+  });
   return (res.data as unknown[]).map(toTrendStock);
+}
+
+export async function fetchTrendDates(): Promise<string[]> {
+  if (USE_MOCK) { await delay(200); return mockTrendStocks.length ? ['2026-07-31'] : []; }
+  const res = await http.get('/screening/trend/dates');
+  return res.data as string[];
 }
 
 // ---- 多条件过滤 ----
