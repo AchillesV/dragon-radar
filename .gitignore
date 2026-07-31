@@ -9,6 +9,9 @@ dist/
 .env
 .env.*
 
+# Local sqlite data
+services/*/data/
+
 # Node
 node_modules/
 dist/

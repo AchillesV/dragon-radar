@@ -16,6 +16,7 @@
 全市场约 5000+ 只，用 20 并发抓取，冷启动一次计算约 1 分钟量级，用较长
 TTL 缓存结果。
 """
+import datetime
 import logging
 import time
 from typing import Dict, List, Optional, Tuple
@@ -24,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 from fastapi import APIRouter
 
+import trend_store
 from models import TrendStock
 from routers.screening import _fetch_hist_tencent
 
@@ -195,11 +197,31 @@ def _batch_check(universe: List[Tuple[str, str]]) -> List[dict]:
 
 
 # ---------------------------------------------------------------------------
-# 组合结果（30分钟缓存 —— 全市场逐只扫描，冷启动耗时较长，不宜频繁触发）
+# 交易日判定 + 结果落库 —— 同一交易日内不重复全市场扫描，
+# 只有当天（最新交易日）在数据库里没有快照时才触发一次全市场扫描。
 # ---------------------------------------------------------------------------
 
-_RESULT_CACHE: Optional[Tuple[float, List[TrendStock]]] = None
-_RESULT_TTL = 1800
+STREAK_MIN = 3  # 连续入选 >= 3 天才标注 + 置顶
+_SESSION_DATE_SAMPLE_CODE = "600000"  # 取样股票，仅用于判定最新交易日日期
+
+
+def _get_session_date() -> str:
+    """最新交易日日期（YYYY-MM-DD），取样一只流动性好的股票的最后一根K线日期。"""
+    df = _fetch_hist_tencent(_SESSION_DATE_SAMPLE_CODE, days=5)
+    if df is not None and not df.empty:
+        return str(df["日期"].iloc[-1])
+    return datetime.date.today().strftime("%Y-%m-%d")
+
+
+def _apply_streak(stocks: List[TrendStock], session_date: str) -> List[TrendStock]:
+    """标注连续入选天数，并把连续 >= STREAK_MIN 天的票排到列表最前面。"""
+    if not stocks:
+        return stocks
+    streak_map = trend_store.compute_streaks(session_date, lookback=LOOKBACK_TRADING_DAYS)
+    for s in stocks:
+        s.streak_days = streak_map.get(s.code, 1)
+    stocks.sort(key=lambda s: 0 if s.streak_days >= STREAK_MIN else 1)
+    return stocks
 
 
 def _compute_trend_stocks() -> List[TrendStock]:
@@ -237,22 +259,35 @@ def _compute_trend_stocks() -> List[TrendStock]:
 
 
 @router.get("/candidates", response_model=List[TrendStock])
-async def get_trend_candidates():
+async def get_trend_candidates(date: Optional[str] = None):
     """
     获取「趋势」信号候选股（放量启动 + 持续放量 + 横盘）
-    结果缓存 30 分钟，避免重复触发全市场扫描。
+
+    - 不传 date：查最新交易日。数据库里已有当天快照就直接返回，
+      没有才触发一次全市场扫描并落库（避免每次刷新都重新扫全市场）。
+    - 传 date=YYYY-MM-DD：只从数据库里查历史快照，不触发扫描。
+    - 无论哪种情况，都会标注「连续入选天数」，并把连续 >= 3 天的票排到最前面。
     """
-    global _RESULT_CACHE
-    now = time.time()
-    if _RESULT_CACHE and now - _RESULT_CACHE[0] < _RESULT_TTL:
-        return _RESULT_CACHE[1]
+    if date:
+        stocks = trend_store.load_snapshot(date)
+        return _apply_streak(stocks, date)
+
+    session_date = _get_session_date()
+    stocks = trend_store.load_snapshot(session_date)
+    if stocks:
+        return _apply_streak(stocks, session_date)
 
     try:
-        result = _compute_trend_stocks()
-        _RESULT_CACHE = (now, result)
-        return result
+        stocks = _compute_trend_stocks()
+        if stocks:
+            trend_store.save_snapshot(session_date, stocks)
+        return _apply_streak(stocks, session_date)
     except Exception as e:
         logger.warning(f"趋势信号计算失败: {e}")
-        if _RESULT_CACHE:
-            return _RESULT_CACHE[1]
         return []
+
+
+@router.get("/dates", response_model=List[str])
+async def get_trend_dates():
+    """最近有快照的交易日列表（倒序），供前端「近10天」下拉筛选使用。"""
+    return trend_store.list_dates(limit=LOOKBACK_TRADING_DAYS)
