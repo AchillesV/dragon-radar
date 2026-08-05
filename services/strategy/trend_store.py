@@ -4,7 +4,7 @@
 设计目标（对应 issue 需求）：
   1. 扫描结果落库，同一交易日内不重复全市场扫描，只有当天没有数据时才扫描。
   2. 按日期查询历史快照，供前端「近10天」下拉筛选使用。
-  3. 基于历史快照计算「连续入选天数」，供前端标注 + 排序使用。
+  3. 基于历史快照计算「统计周期内入选次数」（不要求连续），供前端标注 + 排序使用。
 
 不引入 SQLAlchemy/额外依赖，用标准库 sqlite3 即可满足单机小数据量场景。
 """
@@ -106,11 +106,10 @@ def list_dates(limit: int = 10) -> List[str]:
     return [r[0] for r in rows]
 
 
-def compute_streaks(target_date: str, lookback: int = 10) -> Dict[str, int]:
+def compute_hit_counts(target_date: str, lookback: int = 10) -> Dict[str, int]:
     """
-    计算 target_date 当天每只入选股票「从当天往前连续入选」的天数。
-    只统计数据库里实际有快照的交易日（跳过没跑过扫描的日子），
-    从 target_date 开始往前数，一旦某天不再包含该股票即停止累加。
+    计算 target_date 当天每只入选股票在过去 lookback 个交易日的统计周期内的入选次数。
+    不要求连续入选，只统计数据库里实际有快照的交易日（跳过没跑过扫描的日子）。
     """
     conn = _get_conn()
     dates = [
@@ -123,18 +122,8 @@ def compute_streaks(target_date: str, lookback: int = 10) -> Dict[str, int]:
     if not dates or dates[0] != target_date:
         return {}
 
-    code_sets = [
-        {r[0] for r in conn.execute("SELECT code FROM trend_snapshot WHERE date = ?", (d,)).fetchall()}
-        for d in dates
-    ]
-
-    streak: Dict[str, int] = {}
-    for code in code_sets[0]:
-        n = 0
-        for codes in code_sets:
-            if code in codes:
-                n += 1
-            else:
-                break
-        streak[code] = n
-    return streak
+    counts: Dict[str, int] = {}
+    for d in dates:
+        for (code,) in conn.execute("SELECT code FROM trend_snapshot WHERE date = ?", (d,)).fetchall():
+            counts[code] = counts.get(code, 0) + 1
+    return counts
