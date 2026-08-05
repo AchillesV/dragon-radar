@@ -122,7 +122,7 @@ export interface TrendStock {
   rangeWindow: '3日' | '5日' | '10日';  // 命中横盘条件的窗口
   rangeChangePct: number;      // 该窗口累计涨跌幅
   description?: string;
-  streakDays: number;          // 连续入选天数（含当天），>=3 视为持续入选
+  hitCount: number;             // 过去统计周期内的入选次数（不要求连续），>=3 视为持续入选
 }
 
 export interface BulkAnalysisResult {

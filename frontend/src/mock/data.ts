@@ -1305,20 +1305,20 @@ export const mockTrendStocks: TrendStock[] = [
     breakoutDate: '2026-07-21', breakoutVolume: 209293, baselineAvgVolume: 78621,
     rangeWindow: '5日', rangeChangePct: 4.6,
     description: '2026-07-21 放量启动，5日累计涨跌幅 4.6%（横盘）',
-    streakDays: 4,
+    hitCount: 4,
   },
   {
     code: '600588', name: '用友网络', price: 15.68, changePct: -1.05, industry: '软件服务',
     breakoutDate: '2026-07-22', breakoutVolume: 164803, baselineAvgVolume: 55201,
     rangeWindow: '3日', rangeChangePct: -2.1,
     description: '2026-07-22 放量启动，3日累计涨跌幅 -2.1%（横盘）',
-    streakDays: 1,
+    hitCount: 1,
   },
   {
     code: '000977', name: '浪潮信息', price: 42.15, changePct: 2.87, industry: '计算机设备',
     breakoutDate: '2026-07-20', breakoutVolume: 391550, baselineAvgVolume: 132430,
     rangeWindow: '10日', rangeChangePct: 6.8,
     description: '2026-07-20 放量启动，10日累计涨跌幅 6.8%（横盘）',
-    streakDays: 3,
+    hitCount: 3,
   },
 ];

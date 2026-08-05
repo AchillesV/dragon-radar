@@ -60,4 +60,4 @@ class TrendStock(BaseModel):
     range_window: str               # 命中横盘条件的窗口："3日" / "5日" / "10日"
     range_change_pct: float         # 该窗口累计涨跌幅
     description: Optional[str] = None
-    streak_days: int = 1            # 连续入选天数（含当天），>=3 视为持续入选
+    hit_count: int = 1               # 过去统计周期内的入选次数（不要求连续），>=3 视为持续入选

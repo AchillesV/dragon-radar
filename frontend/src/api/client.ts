@@ -313,7 +313,7 @@ function toTrendStock(raw: any): TrendStock {
     rangeWindow: raw.range_window ?? raw.rangeWindow ?? '5日',
     rangeChangePct: raw.range_change_pct ?? raw.rangeChangePct ?? 0,
     description: raw.description ?? undefined,
-    streakDays: raw.streak_days ?? raw.streakDays ?? 1,
+    hitCount: raw.hit_count ?? raw.hitCount ?? 1,
   };
 }
 
@@ -326,6 +326,13 @@ export async function fetchTrendStocks(date?: string): Promise<TrendStock[]> {
     timeout: 180000,
     params: date ? { date } : undefined,
   });
+  return (res.data as unknown[]).map(toTrendStock);
+}
+
+export async function syncTrendStocks(): Promise<TrendStock[]> {
+  if (USE_MOCK) { await delay(800); return mockTrendStocks; }
+  // 手动同步：强制后端重新全市场扫描当天数据并覆盖数据库，耗时与首次扫描量级一致
+  const res = await http.post('/screening/trend/sync', undefined, { timeout: 180000 });
   return (res.data as unknown[]).map(toTrendStock);
 }
 

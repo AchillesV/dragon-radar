@@ -201,7 +201,7 @@ def _batch_check(universe: List[Tuple[str, str]]) -> List[dict]:
 # 只有当天（最新交易日）在数据库里没有快照时才触发一次全市场扫描。
 # ---------------------------------------------------------------------------
 
-STREAK_MIN = 3  # 连续入选 >= 3 天才标注 + 置顶
+HIT_COUNT_MIN = 3  # 统计周期内入选 >= 3 次才标注 + 置顶
 _SESSION_DATE_SAMPLE_CODE = "600000"  # 取样股票，仅用于判定最新交易日日期
 
 
@@ -213,14 +213,14 @@ def _get_session_date() -> str:
     return datetime.date.today().strftime("%Y-%m-%d")
 
 
-def _apply_streak(stocks: List[TrendStock], session_date: str) -> List[TrendStock]:
-    """标注连续入选天数，并把连续 >= STREAK_MIN 天的票排到列表最前面。"""
+def _apply_hit_count(stocks: List[TrendStock], session_date: str) -> List[TrendStock]:
+    """标注统计周期内入选次数，并把入选 >= HIT_COUNT_MIN 次的票排到列表最前面。"""
     if not stocks:
         return stocks
-    streak_map = trend_store.compute_streaks(session_date, lookback=LOOKBACK_TRADING_DAYS)
+    hit_map = trend_store.compute_hit_counts(session_date, lookback=LOOKBACK_TRADING_DAYS)
     for s in stocks:
-        s.streak_days = streak_map.get(s.code, 1)
-    stocks.sort(key=lambda s: 0 if s.streak_days >= STREAK_MIN else 1)
+        s.hit_count = hit_map.get(s.code, 1)
+    stocks.sort(key=lambda s: 0 if s.hit_count >= HIT_COUNT_MIN else 1)
     return stocks
 
 
@@ -266,25 +266,39 @@ async def get_trend_candidates(date: Optional[str] = None):
     - 不传 date：查最新交易日。数据库里已有当天快照就直接返回，
       没有才触发一次全市场扫描并落库（避免每次刷新都重新扫全市场）。
     - 传 date=YYYY-MM-DD：只从数据库里查历史快照，不触发扫描。
-    - 无论哪种情况，都会标注「连续入选天数」，并把连续 >= 3 天的票排到最前面。
+    - 无论哪种情况，都会标注「统计周期内入选次数」，并把入选 >= 3 次的票排到最前面。
     """
     if date:
         stocks = trend_store.load_snapshot(date)
-        return _apply_streak(stocks, date)
+        return _apply_hit_count(stocks, date)
 
     session_date = _get_session_date()
     stocks = trend_store.load_snapshot(session_date)
     if stocks:
-        return _apply_streak(stocks, session_date)
+        return _apply_hit_count(stocks, session_date)
 
     try:
         stocks = _compute_trend_stocks()
         if stocks:
             trend_store.save_snapshot(session_date, stocks)
-        return _apply_streak(stocks, session_date)
+        return _apply_hit_count(stocks, session_date)
     except Exception as e:
         logger.warning(f"趋势信号计算失败: {e}")
         return []
+
+
+@router.post("/sync", response_model=List[TrendStock])
+async def sync_trend_candidates():
+    """
+    手动触发一次当天全市场重新扫描，并用最新结果覆盖数据库中当天已有的快照。
+
+    与 `/candidates` 的懒加载策略不同（当天已有数据就直接复用），此接口
+    无论当天是否已有快照都会重新扫描一次，供用户在盘中/盘后手动刷新最新数据。
+    """
+    session_date = _get_session_date()
+    stocks = _compute_trend_stocks()
+    trend_store.save_snapshot(session_date, stocks)  # save_snapshot 内部先删后插，天然覆盖当天旧数据
+    return _apply_hit_count(stocks, session_date)
 
 
 @router.get("/dates", response_model=List[str])
