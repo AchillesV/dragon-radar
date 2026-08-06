@@ -201,7 +201,6 @@ def _batch_check(universe: List[Tuple[str, str]]) -> List[dict]:
 # 只有当天（最新交易日）在数据库里没有快照时才触发一次全市场扫描。
 # ---------------------------------------------------------------------------
 
-HIT_COUNT_MIN = 3  # 统计周期内入选 >= 3 次才标注 + 置顶
 _SESSION_DATE_SAMPLE_CODE = "600000"  # 取样股票，仅用于判定最新交易日日期
 
 
@@ -214,13 +213,13 @@ def _get_session_date() -> str:
 
 
 def _apply_hit_count(stocks: List[TrendStock], session_date: str) -> List[TrendStock]:
-    """标注统计周期内入选次数，并把入选 >= HIT_COUNT_MIN 次的票排到列表最前面。"""
+    """标注统计周期内入选次数，并按入选次数从高到低排序。"""
     if not stocks:
         return stocks
     hit_map = trend_store.compute_hit_counts(session_date, lookback=LOOKBACK_TRADING_DAYS)
     for s in stocks:
         s.hit_count = hit_map.get(s.code, 1)
-    stocks.sort(key=lambda s: 0 if s.hit_count >= HIT_COUNT_MIN else 1)
+    stocks.sort(key=lambda s: s.hit_count, reverse=True)
     return stocks
 
 
@@ -266,7 +265,7 @@ async def get_trend_candidates(date: Optional[str] = None):
     - 不传 date：查最新交易日。数据库里已有当天快照就直接返回，
       没有才触发一次全市场扫描并落库（避免每次刷新都重新扫全市场）。
     - 传 date=YYYY-MM-DD：只从数据库里查历史快照，不触发扫描。
-    - 无论哪种情况，都会标注「统计周期内入选次数」，并把入选 >= 3 次的票排到最前面。
+    - 无论哪种情况，都会标注「统计周期内入选次数」，并按入选次数从高到低排序。
     """
     if date:
         stocks = trend_store.load_snapshot(date)
