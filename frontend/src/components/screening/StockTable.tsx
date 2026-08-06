@@ -21,6 +21,9 @@ import BulkAnalysisModal from './BulkAnalysisModal';
 import { generateStockReport, fetchBulkAnalysis } from '../../api/client';
 import { useAppStore } from '../../store';
 
+// 统计周期内入选 >= 3 次视为持续入选（与后端 routers/trend.py 的规则文档保持一致）
+const TREND_HIT_COUNT_THRESHOLD = 3;
+
 interface StockTableProps {
   // Accept both StockRow[] and TrendStock[] data types
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -230,7 +233,7 @@ export default function StockTable({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.textPrimary }}>{record.name}</span>
-            {record.hitCount >= 3 && (
+            {record.hitCount >= TREND_HIT_COUNT_THRESHOLD && (
               <span
                 style={{
                   fontSize: 10,
@@ -583,6 +586,16 @@ export default function StockTable({
     copyToClipboard(text, `全部 ${stocks.length} 只股票`);
   };
 
+  const handleCopyQualified = () => {
+    const qualified = (stocks as TrendStock[]).filter((s) => s.hitCount >= TREND_HIT_COUNT_THRESHOLD);
+    if (qualified.length === 0) {
+      message.warning('暂无多次入选的股票');
+      return;
+    }
+    const text = qualified.map((s) => `${s.name}(${s.code})`).join('\n');
+    copyToClipboard(text, `${qualified.length} 只多次入选股票`);
+  };
+
   return (
     <div style={{ position: 'relative' }}>
       {/* Table toolbar */}
@@ -606,6 +619,16 @@ export default function StockTable({
           >
             复制全部
           </Button>
+          {isTrendMode && (
+            <Button
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={handleCopyQualified}
+              style={{ borderColor: COLORS.chartRed, color: COLORS.chartRed, background: 'rgba(255,77,79,0.08)', fontSize: 12 }}
+            >
+              复制入选
+            </Button>
+          )}
           <Button
             size="small"
             icon={<DownloadOutlined />}
