@@ -46,6 +46,30 @@ class FilterRequest(BaseModel):
     filters: Optional[Dict[str, Any]] = None
 
 
+class MainlineSectorFlow(BaseModel):
+    """科技主线子板块 —— 当日主力资金净流入额加总（元）"""
+    id: str
+    name: str
+    group: str                       # 半导体 / 算力硬件
+    hot: bool = False                # 是否为用户标注的热门子板块
+    net_inflow: float = 0.0          # 子板块内所有分类票当日主力净流入额加总（元）
+    stock_count: int = 0             # 参与加总的分类票数量
+    matched_count: int = 0           # 实际取到资金流数据的股票数（<stock_count 说明部分取数失败）
+
+
+class MainlineStock(BaseModel):
+    """科技主线核心票 —— 2026-04-01~2026-06-30 累计涨幅翻倍的科技股"""
+    code: str
+    name: str
+    subsectors: List[str]            # 所属子板块 id 列表（可能跨多个子板块）
+    price: Optional[float] = None
+    change_pct: float = 0.0          # 今日涨跌幅
+    amount: Optional[float] = None   # 今日成交额（元）
+    period_gain_pct: float = 0.0     # 4/1~6/30 累计涨幅（已用真实历史行情验证）
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
+
+
 class TrendStock(BaseModel):
     """「趋势」命中股票 —— 放量启动 + 持续放量 + 横盘"""
     code: str
