@@ -12,6 +12,7 @@ const navItems = [
   { path: '/anomaly', label: '异动监控' },
   { path: '/screening', label: '特征筛选' },
   { path: '/trend', label: '趋势' },
+  { path: '/mainline', label: '主线' },
 ];
 
 const statusColors: Record<string, string> = {

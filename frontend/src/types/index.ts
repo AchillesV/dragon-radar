@@ -125,6 +125,28 @@ export interface TrendStock {
   hitCount: number;             // 过去统计周期内的入选次数（不要求连续），>=3 视为持续入选
 }
 
+export interface MainlineSector {
+  id: string;
+  name: string;
+  group: string;       // 半导体 / 算力硬件
+  hot: boolean;
+  netInflow: number;    // 元，子板块内所有分类票当日主力净流入额加总
+  stockCount: number;
+  matchedCount: number; // 实际取到资金流数据的股票数，< stockCount 说明数据源部分不可用
+}
+
+export interface MainlineStock {
+  code: string;
+  name: string;
+  subsectors: string[];
+  price?: number;
+  changePct: number;
+  amount?: number;        // 元
+  periodGainPct: number;  // 4/1~6/30 累计涨幅
+  periodStart?: string;
+  periodEnd?: string;
+}
+
 export interface BulkAnalysisResult {
   date: string;
   totalCandidates: number;
