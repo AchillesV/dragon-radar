@@ -8,7 +8,6 @@ import type {
   BulkAnalysisResult,
   AnomalyType,
   TrendStock,
-  MainlineSector,
   MainlineStock,
 } from '../types';
 
@@ -1325,32 +1324,13 @@ export const mockTrendStocks: TrendStock[] = [
   },
 ];
 
-export const mockMainlineSectors: MainlineSector[] = [
-  { id: 'semi_equipment', name: '半导体设备', group: '半导体', hot: true, netInflow: 5.82e8, stockCount: 12, matchedCount: 12 },
-  { id: 'storage_chip', name: '存储芯片', group: '半导体', hot: true, netInflow: 4.31e8, stockCount: 11, matchedCount: 11 },
-  { id: 'pcb', name: 'PCB/载板', group: '算力硬件', hot: false, netInflow: 3.67e8, stockCount: 8, matchedCount: 8 },
-  { id: 'cpo', name: 'CPO(共封装光学)', group: '算力硬件', hot: true, netInflow: 2.95e8, stockCount: 7, matchedCount: 7 },
-  { id: 'semi_material', name: '半导体材料', group: '半导体', hot: false, netInflow: 2.41e8, stockCount: 14, matchedCount: 14 },
-  { id: 'packaging_test', name: '封装测试', group: '半导体', hot: true, netInflow: 1.98e8, stockCount: 8, matchedCount: 8 },
-  { id: 'digital_chip_design', name: '数字芯片设计', group: '半导体', hot: true, netInflow: 1.52e8, stockCount: 13, matchedCount: 13 },
-  { id: 'optical_module', name: '光模块', group: '算力硬件', hot: false, netInflow: 1.10e8, stockCount: 9, matchedCount: 9 },
-  { id: 'liquid_cooling', name: '液冷', group: '算力硬件', hot: true, netInflow: 0.86e8, stockCount: 6, matchedCount: 6 },
-  { id: 'server', name: '服务器', group: '算力硬件', hot: false, netInflow: 0.54e8, stockCount: 6, matchedCount: 6 },
-  { id: 'power_semi', name: '功率半导体', group: '半导体', hot: false, netInflow: 0.22e8, stockCount: 11, matchedCount: 11 },
-  { id: 'analog_chip', name: '模拟芯片', group: '半导体', hot: false, netInflow: -0.35e8, stockCount: 10, matchedCount: 10 },
-  { id: 'design_foundry', name: 'EDA/IP·晶圆代工/IDM', group: '半导体', hot: false, netInflow: -0.61e8, stockCount: 5, matchedCount: 5 },
-  { id: 'optical_chip', name: '光芯片/硅光', group: '算力硬件', hot: false, netInflow: -0.78e8, stockCount: 5, matchedCount: 5 },
-  { id: 'copper_connect', name: '铜连接', group: '算力硬件', hot: false, netInflow: -0.92e8, stockCount: 7, matchedCount: 7 },
-  { id: 'network_idc', name: '交换机/网络设备·IDC数据中心·服务器电源', group: '算力硬件', hot: false, netInflow: -1.14e8, stockCount: 9, matchedCount: 9 },
-];
-
 export const mockMainlineStocks: MainlineStock[] = [
-  { code: '688549', name: '中巨芯', subsectors: ['semi_material'], price: 41.2, changePct: 3.1, amount: 3.2e8, periodGainPct: 317.3, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '600206', name: '有研新材', subsectors: ['semi_material'], price: 68.5, changePct: -1.2, amount: 4.1e8, periodGainPct: 222.7, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '688766', name: '普冉股份', subsectors: ['storage_chip'], price: 780.0, changePct: 2.4, amount: 1.9e8, periodGainPct: 221.7, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '603986', name: '兆易创新', subsectors: ['storage_chip'], price: 830.0, changePct: 1.8, amount: 12.6e8, periodGainPct: 219.6, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '002281', name: '光迅科技', subsectors: ['optical_module', 'cpo'], price: 260.0, changePct: 4.6, amount: 8.7e8, periodGainPct: 195.4, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '300308', name: '中际旭创', subsectors: ['optical_module', 'cpo'], price: 1280.0, changePct: -0.8, amount: 21.3e8, periodGainPct: 111.0, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '300570', name: '太辰光', subsectors: ['cpo'], price: 250.0, changePct: 5.2, amount: 2.4e8, periodGainPct: 122.4, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '002837', name: '英维克', subsectors: ['liquid_cooling'], price: 65.4, changePct: 6.1, amount: 3.8e8, periodGainPct: 108.0, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
+  { code: '603773', name: '沃格光电', price: 162.97, changePct: 3.1, amount: 3.2e8, periodGainPct: 377.5, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
+  { code: '600206', name: '有研新材', price: 90.60, changePct: -1.2, amount: 4.1e8, periodGainPct: 222.7, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
+  { code: '603986', name: '兆易创新', price: 219.60, changePct: 1.8, amount: 12.6e8, periodGainPct: 219.6, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
+  { code: '002281', name: '光迅科技', price: 195.40, changePct: 4.6, amount: 8.7e8, periodGainPct: 195.4, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
+  { code: '600909', name: '华安证券', price: 11.11, changePct: 2.0, amount: 2.4e8, periodGainPct: 97.7, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
+  { code: '002371', name: '北方华创', price: 884.56, changePct: 1.5, amount: 21.3e8, periodGainPct: 96.3, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
+  { code: '002463', name: '沪电股份', price: 152.80, changePct: -0.5, amount: 9.8e8, periodGainPct: 92.7, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
+  { code: '002185', name: '华天科技', price: 22.31, changePct: 6.1, amount: 3.8e8, periodGainPct: 87.0, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
 ];
