@@ -1,9 +1,9 @@
-import { Table, Tag, Button, Space, message } from 'antd';
+import { Table, Button, Space, message } from 'antd';
 import { CopyOutlined } from '@ant-design/icons';
 import type { ColumnType } from 'antd/es/table';
 import { COLORS } from '../../constants/colors';
 import { formatChangePct } from '../../utils/format';
-import type { MainlineStock, MainlineSector } from '../../types';
+import type { MainlineStock } from '../../types';
 
 function formatAmountYuan(v?: number): string {
   if (!v) return '-';
@@ -58,13 +58,10 @@ function CopyCodeIcon({ code }: { code: string }) {
 
 interface Props {
   stocks: MainlineStock[];
-  sectors: MainlineSector[];
   loading?: boolean;
 }
 
-export default function MainlineStockTable({ stocks, sectors, loading }: Props) {
-  const sectorName = (id: string) => sectors.find((s) => s.id === id)?.name ?? id;
-
+export default function MainlineStockTable({ stocks, loading }: Props) {
   const columns: ColumnType<MainlineStock>[] = [
     {
       title: '股票',
@@ -78,20 +75,6 @@ export default function MainlineStockTable({ stocks, sectors, loading }: Props) 
             <span style={{ fontSize: 11, color: COLORS.textMuted }}>{record.code}</span>
             <CopyCodeIcon code={record.code} />
           </div>
-        </div>
-      ),
-    },
-    {
-      title: '所属子板块',
-      key: 'subsectors',
-      width: 220,
-      render: (_: unknown, record: MainlineStock) => (
-        <div>
-          {record.subsectors.map((id) => (
-            <Tag key={id} color="geekblue" style={{ fontSize: 11, marginBottom: 2 }}>
-              {sectorName(id)}
-            </Tag>
-          ))}
         </div>
       ),
     },
@@ -165,7 +148,7 @@ export default function MainlineStockTable({ stocks, sectors, loading }: Props) 
         rowKey="code"
         loading={loading}
         size="small"
-        scroll={{ x: 700 }}
+        scroll={{ x: 600 }}
         pagination={{
           pageSize: 20,
           showSizeChanger: true,
