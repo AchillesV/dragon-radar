@@ -1,161 +1,142 @@
 """
-科技主线 —— 子板块分类 + 核心票静态数据
+科技主线 —— 核心票静态数据（全市场扫描版）
 
-分类依据：见 issue WHT-8 用户补充说明。子板块划分/合并沿用用户给出的原始分组，
-未做进一步拆分合并。
+按用户最新要求（issue WHT-8 评论）：
+  1. 删除「科技子板块主力资金净流入」模块（不再维护子板块分类与资金流加总）。
+  2. 核心票重新定义为：2026-04-01 ~ 2026-06-30 区间累计涨幅 >= 80% 的全部股票，
+     不再限定科技子板块/候选池，全市场扫描；过滤创业板（300/301/302 开头）、
+     科创板（688/689 开头）和 ST 股票。
 
-已按用户要求剔除创业板（300/301开头）和科创板（688开头）股票——分类池
-（STOCK_SUBSECTOR_MAP，用于子板块资金流加总）和核心票（CORE_STOCKS）均已剔除。
-注意：design_foundry（EDA/IP·晶圆代工/IDM）和 optical_chip（光芯片/硅光）两个
-子板块的候选股原本几乎全部集中在科创板，剔除后分类池为空（stock_count=0），
-这两个子板块的资金流会一直是 0，核心票列表里也不会出现这两个子板块的股票——
-这是过滤规则的直接后果，不是数据缺失，见 issue 评论说明。
+数据来源：腾讯 K 线真实历史行情，逐只计算区间累计涨幅（收盘价不复权）。
+验证脚本：scripts/compute_core_stocks_full_market.py，原始结果：
+scripts/core_stock_results_full_market.json。
+全市场 5542 只（Sina 沪深京 A 股列表）-> 过滤后 3378 只 -> 成功取到行情
+3043 只（其余为停牌/退市/新上市无历史数据的股票）-> 命中 80% 以上共 119 只。
 
-CORE_STOCKS（核心票）筛选依据：用户定义"4月到6月底之间涨幅80%以上"，即
-2026-04-01（或之后最近交易日）收盘价 -> 2026-06-30（或之前最近交易日）收盘价
-累计涨幅 >= 80%（原定 100%，用户后续改为 80%）。已用腾讯 K 线真实历史行情
-逐只验证（scripts/compute_core_stocks.py），不是主观拍数。收盘价为不复权价格，
-个别除权除息标的的真实涨幅可能略高于计算值。候选池覆盖 137 只股票（16 个子板块，
-人工按产业链环节整理，允许同一股票跨子板块），剔除创业板/科创板后剩 48 只，
-80% 阈值验证命中 23 只，即为下方 CORE_STOCKS。
+注意：个别除权除息标的的不复权涨幅可能与实际涨幅略有偏差。
 """
-from typing import Dict, List, NamedTuple, Tuple
+from typing import Dict
 
-
-class Subsector(NamedTuple):
-    id: str
-    name: str
-    group: str   # 半导体 / 算力硬件
-    hot: bool    # 对应用户标注的 🔥
-
-
-SUBSECTORS: List[Subsector] = [
-    Subsector("storage_chip", "存储芯片", "半导体", True),
-    Subsector("digital_chip_design", "数字芯片设计", "半导体", True),
-    Subsector("analog_chip", "模拟芯片", "半导体", False),
-    Subsector("power_semi", "功率半导体", "半导体", False),
-    Subsector("semi_equipment", "半导体设备", "半导体", True),
-    Subsector("semi_material", "半导体材料", "半导体", False),
-    Subsector("packaging_test", "封装测试", "半导体", True),
-    Subsector("design_foundry", "EDA/IP·晶圆代工/IDM", "半导体", False),
-    Subsector("optical_module", "光模块", "算力硬件", False),
-    Subsector("cpo", "CPO(共封装光学)", "算力硬件", True),
-    Subsector("optical_chip", "光芯片/硅光", "算力硬件", False),
-    Subsector("copper_connect", "铜连接", "算力硬件", False),
-    Subsector("pcb", "PCB/载板", "算力硬件", False),
-    Subsector("server", "服务器", "算力硬件", False),
-    Subsector("liquid_cooling", "液冷", "算力硬件", True),
-    Subsector("network_idc", "交换机/网络设备·IDC数据中心·服务器电源", "算力硬件", False),
-]
-
-# 子板块 -> 分类股票池（用于按子板块加总当日主力资金净流入额；已剔除创业板/科创板）
-STOCK_SUBSECTOR_MAP: Dict[str, List[Tuple[str, str]]] = {
-    "storage_chip": [
-        ("603986", "兆易创新"),
-        ("001309", "德明利"),
-        ("000021", "深科技"),
-    ],
-    "digital_chip_design": [
-        ("603501", "韦尔股份"),
-    ],
-    "analog_chip": [
-        ("600171", "上海贝岭"),
-    ],
-    "power_semi": [
-        ("603290", "斯达半导"),
-        ("600460", "士兰微"),
-        ("605111", "新洁能"),
-        ("600703", "三安光电"),
-        ("002617", "露笑科技"),
-    ],
-    "semi_equipment": [
-        ("002371", "北方华创"),
-        ("600641", "万业企业"),
-        ("603690", "至纯科技"),
-    ],
-    "semi_material": [
-        ("605358", "立昂微"),
-        ("002409", "雅克科技"),
-        ("603650", "彤程新材"),
-        ("600206", "有研新材"),
-    ],
-    "packaging_test": [
-        ("600584", "长电科技"),
-        ("002156", "通富微电"),
-        ("002185", "华天科技"),
-        ("603005", "晶方科技"),
-        ("600667", "太极实业"),
-    ],
-    "design_foundry": [
-    ],
-    "optical_module": [
-        ("002281", "光迅科技"),
-        ("000988", "华工科技"),
-        ("603083", "剑桥科技"),
-    ],
-    "cpo": [
-        ("002281", "光迅科技"),
-    ],
-    "optical_chip": [
-    ],
-    "copper_connect": [
-        ("002130", "沃尔核材"),
-        ("002897", "意华股份"),
-        ("600577", "精达股份"),
-        ("002179", "中航光电"),
-    ],
-    "pcb": [
-        ("002463", "沪电股份"),
-        ("600183", "生益科技"),
-        ("002916", "深南电路"),
-        ("603228", "景旺电子"),
-        ("002384", "东山精密"),
-        ("002436", "兴森科技"),
-        ("002815", "崇达技术"),
-    ],
-    "server": [
-        ("601138", "工业富联"),
-        ("000977", "浪潮信息"),
-        ("603019", "中科曙光"),
-        ("000628", "高新发展"),
-        ("002261", "拓维信息"),
-        ("000034", "神州数码"),
-    ],
-    "liquid_cooling": [
-        ("002837", "英维克"),
-    ],
-    "network_idc": [
-        ("000938", "紫光股份"),
-        ("603881", "数据港"),
-        ("002335", "科华数据"),
-        ("002851", "麦格米特"),
-        ("002364", "中恒电气"),
-    ],
-}
-
-# 核心票 -> 所属子板块（一只股票可能同时属于多个子板块，取第一个作为主展示子板块）
+# 核心票 -> 区间涨幅信息（2026-04-01 ~ 2026-06-30 累计涨幅 >= 80%，全市场扫描）
 CORE_STOCKS: Dict[str, dict] = {
-    "600206": {"name": "有研新材", "subsectors": ['semi_material'], "period_gain_pct": 222.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "603986": {"name": "兆易创新", "subsectors": ['storage_chip'], "period_gain_pct": 219.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "600667": {"name": "太极实业", "subsectors": ['packaging_test'], "period_gain_pct": 218.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "600183": {"name": "生益科技", "subsectors": ['pcb'], "period_gain_pct": 214.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "002281": {"name": "光迅科技", "subsectors": ['optical_module', 'cpo'], "period_gain_pct": 195.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "002409": {"name": "雅克科技", "subsectors": ['semi_material'], "period_gain_pct": 182.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "600584": {"name": "长电科技", "subsectors": ['packaging_test'], "period_gain_pct": 162.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "605111": {"name": "新洁能", "subsectors": ['power_semi'], "period_gain_pct": 160.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "001309": {"name": "德明利", "subsectors": ['storage_chip'], "period_gain_pct": 153.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "002436": {"name": "兴森科技", "subsectors": ['pcb'], "period_gain_pct": 147.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "603083": {"name": "剑桥科技", "subsectors": ['optical_module'], "period_gain_pct": 142.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "000021": {"name": "深科技", "subsectors": ['storage_chip'], "period_gain_pct": 141.0, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "002384": {"name": "东山精密", "subsectors": ['pcb'], "period_gain_pct": 140.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "605358": {"name": "立昂微", "subsectors": ['semi_material'], "period_gain_pct": 132.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "600641": {"name": "万业企业", "subsectors": ['semi_equipment'], "period_gain_pct": 113.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "600460": {"name": "士兰微", "subsectors": ['power_semi'], "period_gain_pct": 110.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "603005": {"name": "晶方科技", "subsectors": ['packaging_test'], "period_gain_pct": 99.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "002364": {"name": "中恒电气", "subsectors": ['network_idc'], "period_gain_pct": 99.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "002916": {"name": "深南电路", "subsectors": ['pcb'], "period_gain_pct": 98.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "002371": {"name": "北方华创", "subsectors": ['semi_equipment'], "period_gain_pct": 96.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "603650": {"name": "彤程新材", "subsectors": ['semi_material'], "period_gain_pct": 95.0, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "002463": {"name": "沪电股份", "subsectors": ['pcb'], "period_gain_pct": 92.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
-    "002185": {"name": "华天科技", "subsectors": ['packaging_test'], "period_gain_pct": 87.0, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603773": {"name": "沃格光电", "period_gain_pct": 377.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002636": {"name": "金安国纪", "period_gain_pct": 281.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002552": {"name": "宝鼎科技", "period_gain_pct": 272.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "000636": {"name": "风华高科", "period_gain_pct": 270.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603256": {"name": "宏和科技", "period_gain_pct": 263.8, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603186": {"name": "华正新材", "period_gain_pct": 262.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002484": {"name": "江海股份", "period_gain_pct": 257.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603823": {"name": "百合花", "period_gain_pct": 252.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "003036": {"name": "泰坦股份", "period_gain_pct": 251.8, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600206": {"name": "有研新材", "period_gain_pct": 222.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603986": {"name": "兆易创新", "period_gain_pct": 219.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600353": {"name": "旭光电子", "period_gain_pct": 218.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600667": {"name": "太极实业", "period_gain_pct": 218.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "000811": {"name": "冰轮环境", "period_gain_pct": 216.9, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600183": {"name": "生益科技", "period_gain_pct": 214.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600367": {"name": "红星发展", "period_gain_pct": 205.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603989": {"name": "艾华集团", "period_gain_pct": 204.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600707": {"name": "彩虹股份", "period_gain_pct": 198.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603938": {"name": "三孚股份", "period_gain_pct": 197.8, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002281": {"name": "光迅科技", "period_gain_pct": 195.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "605376": {"name": "博迁新材", "period_gain_pct": 184.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600176": {"name": "中国巨石", "period_gain_pct": 183.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002409": {"name": "雅克科技", "period_gain_pct": 182.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "003004": {"name": "声迅股份", "period_gain_pct": 172.0, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603629": {"name": "利通电子", "period_gain_pct": 171.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002859": {"name": "洁美科技", "period_gain_pct": 171.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002491": {"name": "通鼎互联", "period_gain_pct": 170.9, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600552": {"name": "凯盛科技", "period_gain_pct": 169.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002297": {"name": "博云新材", "period_gain_pct": 163.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002787": {"name": "华源控股", "period_gain_pct": 163.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600584": {"name": "长电科技", "period_gain_pct": 162.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603115": {"name": "海星股份", "period_gain_pct": 161.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "605111": {"name": "新洁能", "period_gain_pct": 160.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002980": {"name": "华盛昌", "period_gain_pct": 158.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002990": {"name": "盛视科技", "period_gain_pct": 157.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "001309": {"name": "德明利", "period_gain_pct": 153.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603065": {"name": "宿迁联盛", "period_gain_pct": 147.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002436": {"name": "兴森科技", "period_gain_pct": 147.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "003018": {"name": "金富科技", "period_gain_pct": 146.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002655": {"name": "共达电声", "period_gain_pct": 146.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603678": {"name": "火炬电子", "period_gain_pct": 145.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603083": {"name": "剑桥科技", "period_gain_pct": 142.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603045": {"name": "福达合金", "period_gain_pct": 141.8, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "000021": {"name": "深科技", "period_gain_pct": 141.0, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600869": {"name": "远东股份", "period_gain_pct": 140.8, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002428": {"name": "云南锗业", "period_gain_pct": 140.8, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002384": {"name": "东山精密", "period_gain_pct": 140.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600378": {"name": "昊华科技", "period_gain_pct": 140.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603002": {"name": "宏昌电子", "period_gain_pct": 138.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002008": {"name": "大族激光", "period_gain_pct": 134.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "601133": {"name": "柏诚股份", "period_gain_pct": 133.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "605358": {"name": "立昂微", "period_gain_pct": 132.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "601208": {"name": "东材科技", "period_gain_pct": 131.9, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603608": {"name": "天创时尚", "period_gain_pct": 131.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603738": {"name": "泰晶科技", "period_gain_pct": 128.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "003031": {"name": "中瓷电子", "period_gain_pct": 126.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603663": {"name": "三祥新材", "period_gain_pct": 126.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002674": {"name": "兴业科技", "period_gain_pct": 124.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603078": {"name": "江化微", "period_gain_pct": 123.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600105": {"name": "永鼎股份", "period_gain_pct": 121.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002080": {"name": "中材科技", "period_gain_pct": 118.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603931": {"name": "格林达", "period_gain_pct": 118.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "605006": {"name": "山东玻纤", "period_gain_pct": 118.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "000725": {"name": "京东方Ａ", "period_gain_pct": 116.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002971": {"name": "和远气体", "period_gain_pct": 116.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603311": {"name": "金海高科", "period_gain_pct": 116.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002138": {"name": "顺络电子", "period_gain_pct": 114.8, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600641": {"name": "先导基电", "period_gain_pct": 113.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600172": {"name": "黄河旋风", "period_gain_pct": 112.9, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600487": {"name": "亨通光电", "period_gain_pct": 110.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600460": {"name": "士兰微", "period_gain_pct": 110.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "605589": {"name": "圣泉集团", "period_gain_pct": 109.9, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "001259": {"name": "利仁科技", "period_gain_pct": 109.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603203": {"name": "快克智能", "period_gain_pct": 109.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600522": {"name": "中天科技", "period_gain_pct": 108.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603800": {"name": "洪田股份", "period_gain_pct": 107.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603950": {"name": "长源东谷", "period_gain_pct": 106.9, "period_start": "2026-04-08", "period_end": "2026-06-30"},
+    "603324": {"name": "盛剑科技", "period_gain_pct": 104.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "000962": {"name": "东方钽业", "period_gain_pct": 104.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600545": {"name": "卓郎智能", "period_gain_pct": 101.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603399": {"name": "永杉锂业", "period_gain_pct": 101.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603936": {"name": "博敏电子", "period_gain_pct": 101.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600226": {"name": "亨通股份", "period_gain_pct": 101.0, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600246": {"name": "万通发展", "period_gain_pct": 100.0, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603005": {"name": "晶方科技", "period_gain_pct": 99.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002364": {"name": "中恒电气", "period_gain_pct": 99.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600396": {"name": "华电辽能", "period_gain_pct": 98.9, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002975": {"name": "博杰股份", "period_gain_pct": 98.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002916": {"name": "深南电路", "period_gain_pct": 98.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600909": {"name": "华安证券", "period_gain_pct": 97.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600888": {"name": "新疆众和", "period_gain_pct": 97.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "001389": {"name": "广合科技", "period_gain_pct": 97.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002741": {"name": "光华科技", "period_gain_pct": 96.9, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002938": {"name": "鹏鼎控股", "period_gain_pct": 96.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002371": {"name": "北方华创", "period_gain_pct": 96.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "000657": {"name": "中钨高新", "period_gain_pct": 95.9, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002119": {"name": "康强电子", "period_gain_pct": 95.9, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002957": {"name": "科瑞技术", "period_gain_pct": 95.9, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603688": {"name": "石英股份", "period_gain_pct": 95.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603650": {"name": "彤程新材", "period_gain_pct": 95.0, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603459": {"name": "红板科技", "period_gain_pct": 94.5, "period_start": "2026-04-08", "period_end": "2026-06-30"},
+    "000823": {"name": "超声电子", "period_gain_pct": 93.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002463": {"name": "沪电股份", "period_gain_pct": 92.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603890": {"name": "春秋电子", "period_gain_pct": 91.8, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600186": {"name": "莲花控股", "period_gain_pct": 91.0, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603125": {"name": "常青科技", "period_gain_pct": 89.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603283": {"name": "赛腾股份", "period_gain_pct": 89.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600330": {"name": "天通股份", "period_gain_pct": 89.0, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002185": {"name": "华天科技", "period_gain_pct": 87.0, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600397": {"name": "江钨装备", "period_gain_pct": 84.5, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002747": {"name": "埃斯顿", "period_gain_pct": 84.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600234": {"name": "科新发展", "period_gain_pct": 83.3, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "600961": {"name": "株冶集团", "period_gain_pct": 82.6, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603155": {"name": "新亚强", "period_gain_pct": 81.7, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603303": {"name": "得邦照明", "period_gain_pct": 80.9, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "000672": {"name": "上峰材料", "period_gain_pct": 80.8, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603757": {"name": "大元泵业", "period_gain_pct": 80.4, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "002585": {"name": "双星新材", "period_gain_pct": 80.2, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+    "603061": {"name": "金海通", "period_gain_pct": 80.1, "period_start": "2026-04-01", "period_end": "2026-06-30"},
+
 }
