@@ -12,7 +12,6 @@ import type {
   StockDescription,
   OperationGuide,
   TrendStock,
-  MainlineSector,
   MainlineStock,
 } from '../types';
 import {
@@ -27,7 +26,6 @@ import {
   mockBulkAnalysis,
   mockAnomalyStocks,
   mockTrendStocks,
-  mockMainlineSectors,
   mockMainlineStocks,
 } from '../mock/data';
 
@@ -346,26 +344,12 @@ export async function fetchTrendDates(): Promise<string[]> {
   return res.data as string[];
 }
 
-// 「主线」科技子板块资金流 + 核心票
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toMainlineSector(raw: any): MainlineSector {
-  return {
-    id: raw.id,
-    name: raw.name,
-    group: raw.group,
-    hot: raw.hot ?? false,
-    netInflow: raw.net_inflow ?? raw.netInflow ?? 0,
-    stockCount: raw.stock_count ?? raw.stockCount ?? 0,
-    matchedCount: raw.matched_count ?? raw.matchedCount ?? 0,
-  };
-}
-
+// 「主线」核心票
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toMainlineStock(raw: any): MainlineStock {
   return {
     code: raw.code,
     name: raw.name,
-    subsectors: raw.subsectors ?? [],
     price: raw.price ?? undefined,
     changePct: raw.change_pct ?? raw.changePct ?? 0,
     amount: raw.amount ?? undefined,
@@ -375,20 +359,9 @@ function toMainlineStock(raw: any): MainlineStock {
   };
 }
 
-export async function fetchMainlineSectors(): Promise<MainlineSector[]> {
-  if (USE_MOCK) { await delay(400); return mockMainlineSectors; }
-  const res = await http.get('/screening/mainline/sectors', { timeout: 60000 });
-  return (res.data as unknown[]).map(toMainlineSector);
-}
-
-export async function fetchMainlineStocks(subsector?: string): Promise<MainlineStock[]> {
-  if (USE_MOCK) {
-    await delay(400);
-    return subsector ? mockMainlineStocks.filter((s) => s.subsectors.includes(subsector)) : mockMainlineStocks;
-  }
-  const res = await http.get('/screening/mainline/stocks', {
-    params: subsector ? { subsector } : undefined,
-  });
+export async function fetchMainlineStocks(): Promise<MainlineStock[]> {
+  if (USE_MOCK) { await delay(400); return mockMainlineStocks; }
+  const res = await http.get('/screening/mainline/stocks');
   return (res.data as unknown[]).map(toMainlineStock);
 }
 
