@@ -9,7 +9,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { COLORS, type RawColors } from '../../constants/colors';
 import { LoadingState, EmptyState, ErrorState } from '../common/StatusStates';
 import { formatChangePct } from '../../utils/format';
-import type { SectorAnalysis, TrendStockScore } from '../../types';
+import type { SectorAnalysis, TrendStockScore, LadderStock } from '../../types';
 import SectorHeatCard, { starsOf, scoreColor } from './SectorHeatCard';
 import CandidateRankCard, { CandidateDetail } from './CandidateRankCard';
 
@@ -117,6 +117,32 @@ function SectorDetail({ sector }: { sector: SectorAnalysis }) {
         </div>
       )}
 
+      {(() => {
+        const l = sector.ladder;
+        if (!l) return null;
+        const tiers: Array<[string, LadderStock[]]> = [
+          ['龙头', l.leader], ['中军', l.core], ['趋势', l.trend], ['补涨', l.laggard],
+        ];
+        if (!tiers.some(([, arr]) => arr && arr.length > 0)) return null;
+        return (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 6 }}>
+              板块梯队{sector.ladderScore !== undefined ? ` · 完整度 ${sector.ladderScore.toFixed(0)}` : ''}
+            </div>
+            {tiers.map(([label, arr]) => (
+              arr && arr.length > 0 ? (
+                <div key={label} style={{ display: 'flex', gap: 8, alignItems: 'baseline', marginBottom: 4, fontSize: 13 }}>
+                  <span style={{ color: COLORS.textMuted, minWidth: 30 }}>{label}</span>
+                  <span style={{ color: COLORS.textPrimary }}>
+                    {arr.map((x) => `${x.name}(${formatChangePct(x.changePct)})`).join(' / ')}
+                  </span>
+                </div>
+              ) : null
+            ))}
+          </div>
+        );
+      })()}
+
       <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 6 }}>
         板块内趋势候选股（{sector.candidates.length}）
       </div>
@@ -209,6 +235,7 @@ export default function TrendAnalysisView({ selectedDate, onDateChange }: {
           <div style={{ fontSize: 12, color: COLORS.textMuted }}>
             趋势候选池 {data?.candidateCount ?? 0} 只 → 重点板块 {sectors.length} 个
             {stocks.length > 0 && <span> · 重点股 {data?.shortlistCount ?? stocks.length} 只</span>}
+            {(data?.coreCount ?? 0) > 0 && <span> → 核心股 {data?.coreCount} 只</span>}
             {data?.date && <span> · {data.date}</span>}
             {!isLatest && <span> · 历史：{selectedDate}</span>}
             {data?.source === 'mock' && <span style={{ color: COLORS.chartGold }}> · 数据源异常，展示示例</span>}
@@ -273,24 +300,42 @@ export default function TrendAnalysisView({ selectedDate, onDateChange }: {
             <SectorHeatCard key={s.code} sector={s} rank={i + 1} onClick={() => setActive(s)} />
           ))}
 
-          {stocks.length > 0 && (
-            <>
-              <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.textSecondary, margin: '18px 0 8px' }}>
-                ⭐ 候选股票 · Smart Money 精选（{data?.shortlistCount ?? stocks.length}）
-                <span style={{ color: COLORS.textMuted, fontWeight: 400, fontSize: 12 }}>
-                  {' '}· 候选池 {data?.candidateCount ?? 0} → {data?.shortlistCount ?? stocks.length}（点击查看评分）
-                </span>
-              </div>
-              {stocks.slice(0, SHOW_STOCKS).map((st, i) => (
-                <CandidateRankCard key={st.code} stock={st} rank={i + 1} onClick={() => setActiveStock(st)} />
-              ))}
-              {stocks.length > SHOW_STOCKS && (
-                <div style={{ fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginBottom: 8 }}>
-                  已展示前 {SHOW_STOCKS} 只，共 {stocks.length} 只重点股
-                </div>
-              )}
-            </>
-          )}
+          {stocks.length > 0 && (() => {
+            const core = stocks.filter((s) => s.isCore);
+            const rest = stocks.filter((s) => !s.isCore);
+            return (
+              <>
+                {core.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.textSecondary, margin: '18px 0 8px' }}>
+                      🎯 核心股 TOP {core.length}
+                      <span style={{ color: COLORS.textMuted, fontWeight: 400, fontSize: 12 }}>
+                        {' '}· 候选池 {data?.candidateCount ?? 0} → 重点股 {data?.shortlistCount ?? stocks.length} → 核心 {core.length}（点击查看评分）
+                      </span>
+                    </div>
+                    {core.map((st, i) => (
+                      <CandidateRankCard key={st.code} stock={st} rank={i + 1} onClick={() => setActiveStock(st)} />
+                    ))}
+                  </>
+                )}
+                {rest.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.textSecondary, margin: '18px 0 8px' }}>
+                      其他重点股（{rest.length}）
+                    </div>
+                    {rest.slice(0, SHOW_STOCKS).map((st, i) => (
+                      <CandidateRankCard key={st.code} stock={st} rank={core.length + i + 1} onClick={() => setActiveStock(st)} />
+                    ))}
+                    {rest.length > SHOW_STOCKS && (
+                      <div style={{ fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginBottom: 8 }}>
+                        已展示前 {SHOW_STOCKS} 只，共 {rest.length} 只其他重点股
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            );
+          })()}
         </>
       )}
 

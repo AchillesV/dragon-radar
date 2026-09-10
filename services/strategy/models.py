@@ -107,6 +107,8 @@ class SectorAnalysis(BaseModel):
     lead_stock: Optional[str] = None
     candidate_count: int = 0         # 板块内趋势候选股数量
     candidates: List[SectorMember] = []
+    ladder: Optional[SectorLadder] = None   # 板块梯队（龙头/中军/趋势/补涨）
+    ladder_score: Optional[float] = None    # 梯队完整度 0~100
     signals: List[str] = []          # 策略信号（非买卖结论）
 
 
@@ -115,8 +117,12 @@ class TrendScoreComponents(BaseModel):
     breakout_quality: Optional[float] = None   # 放量启动质量
     volume_sustain: Optional[float] = None     # 启动后量能保持
     relative_strength: Optional[float] = None  # 个股相对强度
+    sector_relative: Optional[float] = None    # 板块内相对强度
     sector_resonance: Optional[float] = None   # 板块共振
     net_inflow: Optional[float] = None         # 资金（板块级代理）
+    amount: Optional[float] = None              # 成交额
+    attention: Optional[float] = None           # 市场关注度（换手率）
+    trend_integrity: Optional[float] = None     # 趋势完整性
     resilience: Optional[float] = None         # 回调资金稳定性（缩量回调）
     restart: Optional[float] = None            # 再次放量突破
     new_high: Optional[float] = None           # 新高/突破
@@ -124,23 +130,48 @@ class TrendScoreComponents(BaseModel):
 
 
 class TrendStockScore(BaseModel):
-    """「趋势 → 分析」重点股（Phase 2：Smart Money / RS / Freshness）"""
+    """「趋势 → 分析」重点股（Phase 2~3：Smart Money / RS / Freshness / 核心股）"""
     code: str
     name: str
     price: Optional[float] = None
     change_pct: float = 0.0
     sector: Optional[str] = None               # 所属行业板块
+    sector_code: Optional[str] = None          # 所属行业板块代码
     sector_type: Optional[str] = None
     concept: Optional[str] = None              # 命中的最强概念板块
-    score: float = 0.0                         # Phase 2 综合分（0~100）
+    concept_code: Optional[str] = None
+    score: float = 0.0                         # 综合评分 FinalScore（0~100）
+    core_score: float = 0.0                    # 核心股评分 CoreScore
     smart_money_score: float = 0.0             # 资金行为评分
     rs_score: float = 0.0                      # 相对强度评分
     freshness: float = 0.0                     # 资金信号新鲜度
+    rank_in_sector: Optional[int] = None       # 所属板块内排名
+    sector_size: Optional[int] = None          # 所属板块候选股数量
+    ladder_role: Optional[str] = None          # 梯队角色：龙头/核心中军/趋势跟随/补涨
+    is_core: bool = False                      # 是否进入核心股 TOP
     breakout_date: Optional[str] = None        # 放量启动日
     breakout_days: int = 0                     # 距启动的交易日数
     ret5_pct: Optional[float] = None           # 近 5 日涨幅 %
     components: TrendScoreComponents = TrendScoreComponents()
     signals: List[str] = []
+
+
+class LadderStock(BaseModel):
+    """板块梯队里的单只个股"""
+    code: str
+    name: str
+    score: float = 0.0           # 综合评分
+    core_score: float = 0.0      # 核心股评分
+    change_pct: float = 0.0
+    role: str = ""               # 龙头 / 核心中军 / 趋势跟随 / 补涨
+
+
+class SectorLadder(BaseModel):
+    """板块梯队（龙头 / 中军 / 趋势 / 补涨）"""
+    leader: List[LadderStock] = []
+    core: List[LadderStock] = []
+    trend: List[LadderStock] = []
+    laggard: List[LadderStock] = []
 
 
 class TrendAnalysis(BaseModel):
@@ -149,6 +180,7 @@ class TrendAnalysis(BaseModel):
     generated_at: str
     candidate_count: int             # 参与聚合的趋势候选股数量
     shortlist_count: int = 0         # Phase 2 压缩后的重点股数量
+    core_count: int = 0              # Phase 3 核心股数量
     source: str = "tencent"         # 数据来源：tencent | mock
     sectors: List[SectorAnalysis] = []
     stocks: List[TrendStockScore] = []

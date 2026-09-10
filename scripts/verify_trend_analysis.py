@@ -121,10 +121,25 @@ def main():
     for st in stocks:
         if not st.get("code"):
             problems.append("重点股缺少 code")
-        for k in ("score", "smart_money_score", "rs_score", "freshness"):
+        for k in ("score", "smart_money_score", "rs_score", "freshness", "core_score"):
             v = st.get(k)
             if v is None or v != v:
                 problems.append(f"{st.get('name')}: {k} 异常 {v}")
+
+    # ---- Phase 3：板块梯队 + 核心股 ----
+    sec = next((s for s in res["sectors"] if s.get("ladder")), None)
+    if sec:
+        print(f"\n[verify] 板块梯队示例：{sec['name']}（梯队分 {sec.get('ladder_score')}）")
+        for k, label in (("leader", "龙头"), ("core", "中军"), ("trend", "趋势"), ("laggard", "补涨")):
+            names = "/".join(x["name"] for x in (sec["ladder"].get(k) or []))
+            print(f"  {label}: {names or '—'}")
+
+    cores = [st for st in stocks if st.get("is_core")]
+    print(f"\n[verify] 核心股 {len(cores)} 只（综合分 / 核心分 / 梯队 / 板块排名）：")
+    for st in cores:
+        print(f"  {st['score']:>5.1f} core{st['core_score']:>5.1f} {str(st.get('ladder_role')):<4} "
+              f"{st['name']}（{st.get('sector')} 第{st.get('rank_in_sector')}/{st.get('sector_size')}，"
+              f"SM{st['smart_money_score']:.0f} RS{st['rs_score']:.0f}）")
 
     if problems:
         print("\n[verify] 发现问题：")

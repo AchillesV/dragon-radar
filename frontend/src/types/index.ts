@@ -167,6 +167,8 @@ export interface SectorAnalysis {
   leadStock?: string;
   candidateCount: number;      // 板块内趋势候选股数量
   candidates: SectorMember[];
+  ladder?: SectorLadder;       // 板块梯队（龙头/中军/趋势/补涨）
+  ladderScore?: number;        // 梯队完整度 0~100
   signals: string[];           // 策略信号（非买卖结论）
 }
 
@@ -175,6 +177,7 @@ export interface TrendAnalysis {
   generatedAt: string;
   candidateCount: number;
   shortlistCount: number;      // Phase 2 压缩后的重点股数量
+  coreCount: number;           // Phase 3 核心股数量
   source: string;              // tencent | mock
   sectors: SectorAnalysis[];
   stocks: TrendStockScore[];
@@ -185,32 +188,61 @@ export interface TrendScoreComponents {
   breakoutQuality?: number;    // 放量启动质量
   volumeSustain?: number;      // 启动后量能保持
   relativeStrength?: number;   // 个股相对强度
+  sectorRelative?: number;     // 板块内相对强度
   sectorResonance?: number;    // 板块共振
   netInflow?: number;          // 资金（板块级代理）
+  amount?: number;             // 成交额
+  attention?: number;          // 市场关注度（换手率）
+  trendIntegrity?: number;     // 趋势完整性
   resilience?: number;         // 回调资金稳定性（缩量回调）
   restart?: number;            // 再次放量突破
   newHigh?: number;            // 新高/突破
   freshness?: number;          // 资金信号新鲜度
 }
 
-// 「趋势 → 分析」重点股（Phase 2：Smart Money / RS / Freshness）
+// 「趋势 → 分析」重点股（Phase 2~3：Smart Money / RS / Freshness / 核心股）
 export interface TrendStockScore {
   code: string;
   name: string;
   price?: number;
   changePct: number;
   sector?: string;             // 所属行业板块
+  sectorCode?: string;
   sectorType?: string;
   concept?: string;            // 命中的最强概念板块
-  score: number;               // Phase 2 综合分 0~100
+  conceptCode?: string;
+  score: number;               // 综合评分 FinalScore 0~100
+  coreScore: number;           // 核心股评分 CoreScore
   smartMoneyScore: number;     // 资金行为评分
   rsScore: number;             // 相对强度评分
   freshness: number;           // 资金信号新鲜度
+  rankInSector?: number;       // 所属板块内排名
+  sectorSize?: number;         // 所属板块候选股数量
+  ladderRole?: string;         // 梯队角色：龙头/核心中军/趋势跟随/补涨
+  isCore: boolean;             // 是否进入核心股 TOP
   breakoutDate?: string;       // 放量启动日
   breakoutDays: number;        // 距启动的交易日数
   ret5Pct?: number;            // 近 5 日涨幅 %
   components: TrendScoreComponents;
   signals: string[];
+}
+
+// 板块梯队里的单只个股
+export interface LadderStock {
+  code: string;
+  name: string;
+  score: number;
+  coreScore: number;
+  changePct: number;
+  role: string;                // 龙头 / 核心中军 / 趋势跟随 / 补涨
+}
+
+// 板块梯队（龙头 / 中军 / 趋势 / 补涨）
+export interface SectorLadder {
+  leader: LadderStock[];
+  core: LadderStock[];
+  trend: LadderStock[];
+  laggard: LadderStock[];
 }
 
 export interface BulkAnalysisResult {

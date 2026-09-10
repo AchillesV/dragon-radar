@@ -1342,13 +1342,15 @@ export const mockTrendAnalysis: TrendAnalysis = {
   generatedAt: '2026-09-10T15:20:00',
   candidateCount: 281,
   shortlistCount: 3,
+  coreCount: 2,
   source: 'mock',
   stocks: [
     {
       code: '688017', name: '绿的谐波', price: 128.6, changePct: 9.9,
       sector: '机械设备', sectorType: 'industry', concept: '人形机器人',
-      score: 90.2, smartMoneyScore: 93.1, rsScore: 86.4, freshness: 86.0,
+      score: 90.2, coreScore: 91.5, smartMoneyScore: 93.1, rsScore: 86.4, freshness: 86.0,
       breakoutDate: '2026-09-08', breakoutDays: 2, ret5Pct: 13.2,
+      sectorCode: 'new_jx', rankInSector: 1, sectorSize: 3, ladderRole: '龙头', isCore: true,
       components: {
         breakoutQuality: 84, volumeSustain: 76, relativeStrength: 86, sectorResonance: 92,
         netInflow: 72, resilience: 81, restart: 68, newHigh: 92, freshness: 86,
@@ -1358,8 +1360,9 @@ export const mockTrendAnalysis: TrendAnalysis = {
     {
       code: '002371', name: '北方华创', price: 412.0, changePct: 7.8,
       sector: '半导体', sectorType: 'industry', concept: '国产芯片',
-      score: 84.6, smartMoneyScore: 86.2, rsScore: 82.1, freshness: 74.0,
+      score: 84.6, coreScore: 84.0, smartMoneyScore: 86.2, rsScore: 82.1, freshness: 74.0,
       breakoutDate: '2026-09-05', breakoutDays: 3, ret5Pct: 9.4,
+      sectorCode: 'new_dzxx', rankInSector: 2, sectorSize: 3, ladderRole: '核心中军', isCore: true,
       components: {
         breakoutQuality: 78, volumeSustain: 70, relativeStrength: 82, sectorResonance: 88,
         netInflow: 66, resilience: 74, restart: 58, newHigh: 84, freshness: 74,
@@ -1369,8 +1372,9 @@ export const mockTrendAnalysis: TrendAnalysis = {
     {
       code: '002472', name: '双环传动', price: 38.9, changePct: 6.2,
       sector: '汽车零部件', sectorType: 'industry', concept: '人形机器人',
-      score: 78.3, smartMoneyScore: 80.5, rsScore: 76.0, freshness: 60.0,
+      score: 78.3, coreScore: 74.0, smartMoneyScore: 80.5, rsScore: 76.0, freshness: 60.0,
       breakoutDate: '2026-09-02', breakoutDays: 4, ret5Pct: 6.1,
+      sectorCode: 'new_qclbj', rankInSector: 3, sectorSize: 3, ladderRole: '趋势跟随', isCore: false,
       components: {
         breakoutQuality: 70, volumeSustain: 64, relativeStrength: 76, sectorResonance: 84,
         netInflow: 60, resilience: 70, restart: 52, newHigh: 76, freshness: 60,
@@ -1385,6 +1389,13 @@ export const mockTrendAnalysis: TrendAnalysis = {
       breadthScore: 83.0, upRatio: 76.0, totalCount: 100, upCount: 76, downCount: 24,
       strong3Count: 31, strong5Count: 18, limitUpCount: 6,
       leadStock: '绿的谐波', candidateCount: 4,
+      ladder: {
+        leader: [{ code: '688017', name: '绿的谐波', score: 90.2, coreScore: 91.5, changePct: 9.9, role: '龙头' }],
+        core: [{ code: '002472', name: '双环传动', score: 78.3, coreScore: 74.0, changePct: 6.2, role: '核心中军' }],
+        trend: [{ code: '603667', name: '五洲新春', score: 70.1, coreScore: 68.0, changePct: 4.1, role: '趋势跟随' }],
+        laggard: [],
+      },
+      ladderScore: 80.0,
       candidates: [
         { code: '688017', name: '绿的谐波', changePct: 9.9, isCandidate: true, isLead: true },
         { code: '002472', name: '双环传动', changePct: 6.2, isCandidate: true, isLead: false },

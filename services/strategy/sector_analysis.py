@@ -174,6 +174,9 @@ def _fetch_members(code: str) -> List[dict]:
                 "code": c[2:] if c[:2].isalpha() else c,   # 去掉 sh/sz/bj 前缀
                 "name": it.get("name") or c,
                 "change_pct": _to_float(it.get("zdf")),
+                "turnover": _to_float(it.get("turnover")),   # 成交额（万元）
+                "turnover_rate": _to_float(it.get("hsl")),   # 换手率 %
+                "lb": _to_float(it.get("lb")),               # 量比
             })
         total = int(_to_float(data.get("total"), 0))
         offset += len(rows)
@@ -322,12 +325,15 @@ def _score_board(board: dict, members: List[dict], candidates: List[dict]) -> di
 _MOCK_ANALYSIS = {
     "source": "mock",
     "shortlist_count": 2,
+    "core_count": 2,
     "stocks": [
         {
             "code": "000001", "name": "示例龙头", "price": 18.6, "change_pct": 9.9,
             "sector": "机器人", "sector_type": "industry", "concept": "人形机器人",
-            "score": 89.4, "smart_money_score": 91.0, "rs_score": 88.0, "freshness": 86.0,
+            "score": 89.4, "core_score": 92.0, "smart_money_score": 91.0, "rs_score": 88.0, "freshness": 86.0,
             "breakout_date": "2026-09-08", "breakout_days": 2, "ret5_pct": 12.4,
+            "sector_code": "mock_1", "rank_in_sector": 1, "sector_size": 3,
+            "ladder_role": "龙头", "is_core": True,
             "components": {
                 "breakout_quality": 82.0, "volume_sustain": 74.0, "relative_strength": 88.0,
                 "sector_resonance": 92.0, "net_inflow": 71.0, "resilience": 80.0,
@@ -338,8 +344,10 @@ _MOCK_ANALYSIS = {
         {
             "code": "000002", "name": "示例中军", "price": 31.2, "change_pct": 6.2,
             "sector": "半导体", "sector_type": "industry", "concept": "国产芯片",
-            "score": 81.2, "smart_money_score": 83.0, "rs_score": 79.0, "freshness": 74.0,
+            "score": 81.2, "core_score": 79.0, "smart_money_score": 83.0, "rs_score": 79.0, "freshness": 74.0,
             "breakout_date": "2026-09-05", "breakout_days": 3, "ret5_pct": 8.1,
+            "sector_code": "mock_2", "rank_in_sector": 2, "sector_size": 3,
+            "ladder_role": "核心中军", "is_core": True,
             "components": {
                 "breakout_quality": 70.0, "volume_sustain": 66.0, "relative_strength": 79.0,
                 "sector_resonance": 86.0, "net_inflow": 62.0, "resilience": 72.0,
@@ -356,6 +364,13 @@ _MOCK_ANALYSIS = {
             "total_count": 100, "up_count": 76, "down_count": 24, "strong3_count": 31,
             "strong5_count": 18, "limit_up_count": 6,
             "lead_stock": "示例龙头", "candidate_count": 4,
+            "ladder": {
+                "leader": [{"code": "000001", "name": "示例龙头", "score": 89.4, "core_score": 92.0, "change_pct": 9.9, "role": "龙头"}],
+                "core": [{"code": "000002", "name": "示例中军", "score": 81.2, "core_score": 79.0, "change_pct": 6.2, "role": "核心中军"}],
+                "trend": [{"code": "000003", "name": "示例跟随", "score": 72.0, "core_score": 70.0, "change_pct": 4.1, "role": "趋势跟随"}],
+                "laggard": [],
+            },
+            "ladder_score": 80.0,
             "candidates": [
                 {"code": "000001", "name": "示例龙头", "change_pct": 9.9, "is_candidate": True, "is_lead": True},
                 {"code": "000002", "name": "示例中军", "change_pct": 6.2, "is_candidate": True, "is_lead": False},
@@ -393,6 +408,49 @@ def _heat_proxy(b: dict) -> float:
     return b["change5_pct"] * 0.5 + b["change_pct"] + b["lb"]
 
 
+def _ladder_role(idx: int) -> str:
+    """板块内按核心分排序后的梯队角色（设计文档 §13）。"""
+    if idx == 0:
+        return "龙头"
+    if idx <= 2:
+        return "核心中军"
+    if idx <= 5:
+        return "趋势跟随"
+    return "补涨"
+
+
+def _build_ladder(group: List[dict]) -> Tuple[dict, float]:
+    """group 已按 core_score 降序。返回（四档梯队明细, 梯队完整度 0~100）。"""
+    buckets: Dict[str, List[dict]] = {"leader": [], "core": [], "trend": [], "laggard": []}
+    key_of = {"龙头": "leader", "核心中军": "core", "趋势跟随": "trend", "补涨": "laggard"}
+    for i, st in enumerate(group):
+        buckets[key_of[_ladder_role(i)]].append({
+            "code": st["code"],
+            "name": st["name"],
+            "score": st["score"],
+            "core_score": st["core_score"],
+            "change_pct": st["change_pct"],
+            "role": _ladder_role(i),
+        })
+
+    score = 0.0
+    if buckets["leader"]:
+        score += 30
+    if buckets["core"]:
+        score += 20
+    if len(buckets["trend"]) >= 2:
+        score += 20
+    elif buckets["trend"]:
+        score += 10
+    if len(buckets["laggard"]) >= 2:
+        score += 10
+    if buckets["leader"] and buckets["leader"][0]["change_pct"] > 5:
+        score += 10
+    if sum(1 for s in group if s["change_pct"] > 0) >= 3:
+        score += 10
+    return buckets, min(100.0, score)
+
+
 def build_analysis(candidates: List[dict], session_date: str) -> dict:
     """
     组装「趋势 → 分析」结果。
@@ -403,7 +461,8 @@ def build_analysis(candidates: List[dict], session_date: str) -> dict:
 
     流程：板块级指标排序 → 选定行业（全部，保证候选股都能归到行业）/ 概念（热度 TOP）→
     拉取成分股 → 用候选池计算核心股强度与扩散度 → 输出行业/概念重点板块 →
-    再对候选股逐股计算 SmartMoney / RS / Freshness（Phase 2），压缩到 SHORTLIST 只。
+    逐股计算 SmartMoney / RS / Freshness / CoreScore（Phase 2~3），按综合分取 TOP SHORTLIST，
+    其中前 CORE_COUNT 只为「核心股」，并给每个板块打上梯队（龙头/中军/趋势/补涨）。
     """
     boards = _fetch_boards()
     if not boards:
@@ -453,18 +512,52 @@ def build_analysis(candidates: List[dict], session_date: str) -> dict:
         for m in members_map.get(b["code"], []):
             concepts_of.setdefault(m["code"], []).append(scored_by_code[b["code"]])
 
-    # ---- Phase 2：候选股逐股 SmartMoney / RS / Freshness，压缩到 SHORTLIST 只 ----
+    # ---- 个股成交额/换手（来自板块成分股指标，供 CoreScore 用） ----
+    stock_meta: Dict[str, dict] = {}
+    for b in picked:
+        for m in members_map.get(b["code"], []):
+            stock_meta.setdefault(m["code"], m)
+
+    # ---- Phase 2~3：逐股评分（SmartMoney / RS / Freshness / CoreScore） ----
     try:
-        stocks = stock_scores.score_candidates(candidates, industry_of, concepts_of, session_date)
+        all_scored = stock_scores.score_candidates(
+            candidates, industry_of, concepts_of, session_date, stock_meta
+        )
     except Exception as e:
         logger.warning(f"个股评分失败，本轮跳过 stocks: {e}")
-        stocks = []
+        all_scored = []
+
+    # ---- 板块梯队：按所属行业板块的候选股 cohort 排序分档 + 梯队完整度 ----
+    by_sector: Dict[str, List[dict]] = {}
+    for st in all_scored:
+        by_sector.setdefault(st.get("sector_code") or "", []).append(st)
+    ladder_by_code: Dict[str, Tuple[dict, float]] = {}
+    for scode, group in by_sector.items():
+        if not scode:
+            continue   # 未归入任何行业的个股不参与梯队
+        group.sort(key=lambda s: s["core_score"], reverse=True)
+        for i, st in enumerate(group):
+            st["rank_in_sector"] = i + 1
+            st["sector_size"] = len(group)
+            st["ladder_role"] = _ladder_role(i)
+        ladder_by_code[scode] = _build_ladder(group)
+    for s in sectors:
+        info = ladder_by_code.get(s["code"])
+        if info:
+            s["ladder"], s["ladder_score"] = info[0], round(info[1], 1)
+
+    # ---- 重点池 TOP SHORTLIST，其中前 CORE_COUNT 只为核心股 ----
+    stocks = all_scored[:stock_scores.SHORTLIST]
+    for i, st in enumerate(stocks):
+        st["is_core"] = i < stock_scores.CORE_COUNT
+    core_count = min(stock_scores.CORE_COUNT, len(stocks))
 
     result = {
         "date": session_date,
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "candidate_count": len(candidates),
         "shortlist_count": len(stocks),
+        "core_count": core_count,
         "source": "tencent",
         "sectors": sectors,
         "stocks": stocks,

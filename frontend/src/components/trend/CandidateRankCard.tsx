@@ -18,6 +18,13 @@ function chgColor(v?: number): string {
   return v > 0 ? COLORS.rise : v < 0 ? COLORS.fall : COLORS.textSecondary;
 }
 
+const ROLE_COLOR: Record<string, string> = {
+  '龙头': 'red',
+  '核心中军': 'volcano',
+  '趋势跟随': 'blue',
+  '补涨': 'default',
+};
+
 /** 候选池里单只重点股（Phase 2：Smart Money / RS / Freshness） */
 export default function CandidateRankCard({
   stock,
@@ -54,6 +61,12 @@ export default function CandidateRankCard({
             {stock.name}
           </span>
           <span style={{ fontSize: 12, color: COLORS.textMuted }}>{stock.code}</span>
+          {stock.isCore && <Tag color="red" style={{ marginInlineEnd: 0, fontSize: 10, lineHeight: '16px' }}>核心</Tag>}
+          {stock.ladderRole && (
+            <Tag color={ROLE_COLOR[stock.ladderRole] ?? 'default'} style={{ marginInlineEnd: 0, fontSize: 10, lineHeight: '16px' }}>
+              {stock.ladderRole}
+            </Tag>
+          )}
           {stock.sector && <Tag color="blue" style={{ marginInlineEnd: 0, fontSize: 10, lineHeight: '16px' }}>{stock.sector}</Tag>}
           {stock.concept && <Tag color="magenta" style={{ marginInlineEnd: 0, fontSize: 10, lineHeight: '16px' }}>{stock.concept}</Tag>}
         </div>
@@ -72,6 +85,9 @@ export default function CandidateRankCard({
         <Mini label="5日" value={stock.ret5Pct === undefined ? '--' : formatChangePct(stock.ret5Pct)} color={chgColor(stock.ret5Pct)} />
         <Tooltip title="资金行为评分（0~100）">
           <div style={{ display: 'flex' }}><Mini label="Smart Money" value={stock.smartMoneyScore.toFixed(0)} /></div>
+        </Tooltip>
+        <Tooltip title="核心股评分（板块内相对强度/资金/成交额/趋势/抗跌…）">
+          <div style={{ display: 'flex' }}><Mini label="核心分" value={stock.coreScore.toFixed(0)} /></div>
         </Tooltip>
         <Mini label="相对强度" value={stock.rsScore.toFixed(0)} />
         <Mini label="新鲜度" value={stock.freshness.toFixed(0)} />
@@ -114,11 +130,13 @@ export function CandidateDetail({ stock }: { stock: TrendStockScore }) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 20, fontWeight: 800, color: scoreColor(stock.score) }}>{stock.score.toFixed(1)}</span>
         <span style={{ color: COLORS.chartGold, fontSize: 14 }}>{'★'.repeat(s)}{'☆'.repeat(5 - s)}</span>
-        <span style={{ fontSize: 13, color: COLORS.textMuted }}>Phase 2 综合分</span>
+        <span style={{ fontSize: 13, color: COLORS.textMuted }}>综合评分 FinalScore</span>
       </div>
       <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 14 }}>
         {stock.sector && <Tag color="blue">行业：{stock.sector}</Tag>}
         {stock.concept && <Tag color="magenta">概念：{stock.concept}</Tag>}
+        {stock.ladderRole && <Tag color={ROLE_COLOR[stock.ladderRole] ?? 'default'}>梯队：{stock.ladderRole}</Tag>}
+        {stock.rankInSector && <Tag>板块内第 {stock.rankInSector}/{stock.sectorSize}</Tag>}
         {stock.breakoutDate && <span>放量启动 {stock.breakoutDate}（{stock.breakoutDays} 个交易日前）</span>}
       </div>
 
@@ -126,11 +144,22 @@ export function CandidateDetail({ stock }: { stock: TrendStockScore }) {
         <Mini label="今日" value={formatChangePct(stock.changePct)} color={chgColor(stock.changePct)} />
         <Mini label="近5日" value={stock.ret5Pct === undefined ? '--' : formatChangePct(stock.ret5Pct)} color={chgColor(stock.ret5Pct)} />
         <Mini label="Smart Money" value={stock.smartMoneyScore.toFixed(0)} />
+        <Mini label="核心分" value={stock.coreScore.toFixed(0)} />
         <Mini label="相对强度 RS" value={stock.rsScore.toFixed(0)} />
         <Mini label="新鲜度" value={stock.freshness.toFixed(0)} />
       </div>
 
-      <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 8 }}>评分分项（Smart Money 构成）</div>
+      <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 8 }}>核心股评分构成（CoreScore）</div>
+      <CompBar label="板块内相对强度" value={c.sectorRelative} hint="权重 20%" />
+      <CompBar label="资金强度（板块代理）" value={c.netInflow} hint="权重 15%" />
+      <CompBar label="成交额" value={c.amount} hint="权重 15%" />
+      <CompBar label="趋势完整性" value={c.trendIntegrity} hint="权重 10%" />
+      <CompBar label="放量启动质量" value={c.breakoutQuality} hint="权重 10%" />
+      <CompBar label="抗跌能力（缩量回调）" value={c.resilience} hint="权重 10%" />
+      <CompBar label="板块共振" value={c.sectorResonance} hint="权重 10%" />
+      <CompBar label="市场关注度（换手）" value={c.attention} hint="权重 5%" />
+
+      <div style={{ fontSize: 12, color: COLORS.textMuted, margin: '12px 0 8px' }}>资金行为评分构成（Smart Money）</div>
       <CompBar label="放量启动质量" value={c.breakoutQuality} hint="权重 15%" />
       <CompBar label="启动后量能保持" value={c.volumeSustain} hint="权重 10%" />
       <CompBar label="个股相对强度" value={c.relativeStrength} hint="权重 15%" />

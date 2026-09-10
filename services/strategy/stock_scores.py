@@ -32,6 +32,10 @@ logger = logging.getLogger(__name__)
 
 # 重点股数量：候选池 → 50 只
 SHORTLIST = 50
+CORE_COUNT = 20
+
+# 市场环境模块（设计文档模块 1）尚未实现，先用中性 50 分占位，保留文档权重不变
+MARKET_ENV_NEUTRAL = 50.0
 
 # 指数代码（腾讯行情）
 INDEX_HS300 = "sh000300"
@@ -90,6 +94,7 @@ def _score_one(
     industry: Optional[dict],
     concepts: List[dict],
     idx_ret: Dict[str, Optional[float]],
+    meta: Optional[dict] = None,
 ) -> Optional[dict]:
     """对单只候选股计算 SmartMoney / RS / Freshness。df 列：日期,开盘,收盘,最高,最低,成交量,涨跌幅。"""
     if df is None or len(df) < 8:
@@ -140,6 +145,11 @@ def _score_one(
     # 超额收益映射：0 → 50 分，±15 个百分点 → 100/0
     rs_score = _norm(rs_raw, -15.0, 15.0)
 
+    # ---- C2. 板块内相对强度：个股 5 日涨幅相对所属行业的超额 ----
+    sector_rel = (ret5 - industry["change5_pct"]
+                  if industry and industry.get("change5_pct") is not None else rs_raw)
+    sector_rel_score = _norm(sector_rel, -8.0, 15.0)
+
     # ---- D. 板块共振：所属行业/概念板块热度取最高 ----
     sector_scores = [b.get("score") for b in ([industry] if industry else []) + list(concepts or [])
                      if b and b.get("score") is not None]
@@ -179,6 +189,21 @@ def _score_one(
     days_since = ((len(dates) - 1) - d_idx) if d_idx >= 0 else 5
     freshness = 100.0 * math.exp(-0.12 * max(0, days_since))
 
+    # ---- J. 成交额 / 换手（来自板块成分股指标；缺失时中性） ----
+    m = meta or {}
+    turnover = _to_float(m.get("turnover"))          # 成交额（万元）
+    amount_comp = _norm(math.log10(turnover), 3.5, 5.7) if turnover > 0 else 50.0
+    hsl = _to_float(m.get("turnover_rate"))          # 换手率 %
+    attention = _norm(hsl, 0.5, 8.0) if hsl > 0 else 50.0
+
+    # ---- K. 趋势完整性：入选次数越稳定、横盘越居中越好 ----
+    range_chg = _to_float(entry.get("range_change_pct"))
+    hit_count = _to_float(entry.get("hit_count"), 1.0)
+    trend_integrity = (
+        0.5 * _norm(hit_count, 1.0, 3.0)
+        + 0.5 * (100.0 - _norm(abs(range_chg), 0.0, 12.0))
+    )
+
     smart_money = (
         0.15 * breakout_quality
         + 0.10 * volume_sustain
@@ -190,8 +215,25 @@ def _score_one(
         + 0.05 * new_high
         + 0.10 * freshness
     )
-    # Phase 2 综合分：Smart Money 为主，叠加相对强度与新鲜度
-    score = 0.55 * smart_money + 0.25 * rs_score + 0.20 * freshness
+
+    # ---- 核心股评分 CoreScore（设计文档模块 5） ----
+    core_score = (
+        0.20 * sector_rel_score
+        + 0.15 * net_inflow_comp
+        + 0.15 * amount_comp
+        + 0.10 * trend_integrity
+        + 0.10 * breakout_quality
+        + 0.10 * resilience
+        + 0.10 * sector_resonance
+        + 0.05 * freshness
+        + 0.05 * attention
+    )
+
+    # ---- 综合评分 FinalScore（设计文档 §21；市场环境模块未实现，用中性 50 占位） ----
+    score = (
+        25 * smart_money + 20 * sector_resonance + 20 * core_score
+        + 15 * rs_score + 10 * trend_integrity + 5 * freshness + 5 * MARKET_ENV_NEUTRAL
+    ) / 100.0
 
     signals: List[str] = []
     if breakout_quality >= 65:
@@ -215,10 +257,14 @@ def _score_one(
         "price": closes[-1],
         "change_pct": round(entry.get("change_pct", 0.0), 2),
         "sector": (industry or {}).get("name"),
+        "sector_code": (industry or {}).get("code"),
         "sector_type": "industry",
         "concept": (max(concepts, key=lambda c: c.get("score") or 0).get("name")
                     if concepts else None),
+        "concept_code": (max(concepts, key=lambda c: c.get("score") or 0).get("code")
+                         if concepts else None),
         "score": round(score, 1),
+        "core_score": round(core_score, 1),
         "smart_money_score": round(smart_money, 1),
         "rs_score": round(rs_score, 1),
         "freshness": round(freshness, 1),
@@ -229,8 +275,12 @@ def _score_one(
             "breakout_quality": round(breakout_quality, 1),
             "volume_sustain": round(volume_sustain, 1),
             "relative_strength": round(rs_score, 1),
+            "sector_relative": round(sector_rel_score, 1),
             "sector_resonance": round(sector_resonance, 1),
             "net_inflow": round(net_inflow_comp, 1),
+            "amount": round(amount_comp, 1),
+            "attention": round(attention, 1),
+            "trend_integrity": round(trend_integrity, 1),
             "resilience": round(resilience, 1),
             "restart": round(restart, 1),
             "new_high": round(new_high, 1),
@@ -245,18 +295,21 @@ def score_candidates(
     industry_of: Dict[str, dict],
     concepts_of: Dict[str, List[dict]],
     session_date: str,
+    stock_meta: Optional[Dict[str, dict]] = None,
 ) -> List[dict]:
     """
-    对候选池逐股打分，返回按 Phase 2 综合分排序的 TOP SHORTLIST。
+    对候选池逐股打分，返回按综合评分排序的全部个股（不截断；截断与梯队归组由调用方处理）。
 
     entries: [{code,name,change_pct,breakout_date,breakout_volume,baseline_avg_volume,
                range_change_pct,hit_count}, ...]
     industry_of: code → 所属行业板块指标（含 name/change5_pct/net_inflow_pct/score）
     concepts_of: code → 所属概念板块指标列表（仅 Phase 1 热度 TOP 概念）
+    stock_meta: code → 板块成分股指标（成交额 turnover / 换手 turnover_rate）
     """
     if not entries:
         return []
 
+    stock_meta = stock_meta or {}
     idx_ret = {
         INDEX_HS300: _fetch_index_ret5(INDEX_HS300),
         INDEX_ZZ1000: _fetch_index_ret5(INDEX_ZZ1000),
@@ -272,6 +325,7 @@ def score_candidates(
                 industry_of.get(e["code"]),
                 concepts_of.get(e["code"]),
                 idx_ret,
+                stock_meta.get(e["code"]),
             ): e["code"]
             for e in entries
         }
@@ -284,4 +338,4 @@ def score_candidates(
                 logger.debug(f"个股评分异常 {futs[fut]}: {e}")
 
     scored.sort(key=lambda s: s["score"], reverse=True)
-    return scored[:SHORTLIST]
+    return scored

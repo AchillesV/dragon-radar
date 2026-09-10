@@ -15,6 +15,7 @@ import type {
   MainlineStock,
   TrendAnalysis,
   TrendScoreComponents,
+  LadderStock,
 } from '../types';
 import {
   mockStocks,
@@ -355,18 +356,32 @@ function toTrendAnalysis(raw: any): TrendAnalysis {
     breakoutQuality: c.breakout_quality ?? c.breakoutQuality ?? undefined,
     volumeSustain: c.volume_sustain ?? c.volumeSustain ?? undefined,
     relativeStrength: c.relative_strength ?? c.relativeStrength ?? undefined,
+    sectorRelative: c.sector_relative ?? c.sectorRelative ?? undefined,
     sectorResonance: c.sector_resonance ?? c.sectorResonance ?? undefined,
     netInflow: c.net_inflow ?? c.netInflow ?? undefined,
+    amount: c.amount ?? undefined,
+    attention: c.attention ?? undefined,
+    trendIntegrity: c.trend_integrity ?? c.trendIntegrity ?? undefined,
     resilience: c.resilience ?? undefined,
     restart: c.restart ?? undefined,
     newHigh: c.new_high ?? c.newHigh ?? undefined,
     freshness: c.freshness ?? undefined,
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const toLadderStock = (x: any): LadderStock => ({
+    code: x.code,
+    name: x.name,
+    score: x.score ?? 0,
+    coreScore: x.core_score ?? x.coreScore ?? 0,
+    changePct: x.change_pct ?? x.changePct ?? 0,
+    role: x.role ?? '',
   });
   return {
     date: raw.date ?? '',
     generatedAt: raw.generated_at ?? raw.generatedAt ?? '',
     candidateCount: raw.candidate_count ?? raw.candidateCount ?? 0,
     shortlistCount: raw.shortlist_count ?? raw.shortlistCount ?? 0,
+    coreCount: raw.core_count ?? raw.coreCount ?? 0,
     source: raw.source ?? 'tencent',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     stocks: (raw.stocks ?? []).map((s: any) => ({
@@ -375,12 +390,19 @@ function toTrendAnalysis(raw: any): TrendAnalysis {
       price: s.price ?? undefined,
       changePct: s.change_pct ?? s.changePct ?? 0,
       sector: s.sector ?? undefined,
+      sectorCode: s.sector_code ?? s.sectorCode ?? undefined,
       sectorType: s.sector_type ?? s.sectorType ?? undefined,
       concept: s.concept ?? undefined,
+      conceptCode: s.concept_code ?? s.conceptCode ?? undefined,
       score: s.score ?? 0,
+      coreScore: s.core_score ?? s.coreScore ?? 0,
       smartMoneyScore: s.smart_money_score ?? s.smartMoneyScore ?? 0,
       rsScore: s.rs_score ?? s.rsScore ?? 0,
       freshness: s.freshness ?? 0,
+      rankInSector: s.rank_in_sector ?? s.rankInSector ?? undefined,
+      sectorSize: s.sector_size ?? s.sectorSize ?? undefined,
+      ladderRole: s.ladder_role ?? s.ladderRole ?? undefined,
+      isCore: s.is_core ?? s.isCore ?? false,
       breakoutDate: s.breakout_date ?? s.breakoutDate ?? undefined,
       breakoutDays: s.breakout_days ?? s.breakoutDays ?? 0,
       ret5Pct: s.ret5_pct ?? s.ret5Pct ?? undefined,
@@ -409,6 +431,16 @@ function toTrendAnalysis(raw: any): TrendAnalysis {
       limitUpCount: s.limit_up_count ?? s.limitUpCount ?? 0,
       leadStock: s.lead_stock ?? s.leadStock ?? undefined,
       candidateCount: s.candidate_count ?? s.candidateCount ?? 0,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ladder: s.ladder
+        ? {
+            leader: (s.ladder.leader ?? []).map(toLadderStock),
+            core: (s.ladder.core ?? []).map(toLadderStock),
+            trend: (s.ladder.trend ?? []).map(toLadderStock),
+            laggard: (s.ladder.laggard ?? []).map(toLadderStock),
+          }
+        : undefined,
+      ladderScore: s.ladder_score ?? s.ladderScore ?? undefined,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       candidates: (s.candidates ?? []).map((c: any) => ({
         code: c.code,
