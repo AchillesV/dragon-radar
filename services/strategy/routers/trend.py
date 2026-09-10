@@ -338,7 +338,16 @@ async def get_trend_analysis(date: Optional[str] = None):
     session_date = date or _get_session_date()
     stocks = _load_candidates(session_date, allow_compute=date is None)
     candidates = [
-        {"code": s.code, "name": s.name, "change_pct": s.change_pct}
+        {
+            "code": s.code,
+            "name": s.name,
+            "change_pct": s.change_pct,
+            "breakout_date": s.breakout_date,
+            "breakout_volume": s.breakout_volume,
+            "baseline_avg_volume": s.baseline_avg_volume,
+            "range_change_pct": s.range_change_pct,
+            "hit_count": s.hit_count,
+        }
         for s in stocks
     ]
     try:

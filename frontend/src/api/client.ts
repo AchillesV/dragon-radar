@@ -14,6 +14,7 @@ import type {
   TrendStock,
   MainlineStock,
   TrendAnalysis,
+  TrendScoreComponents,
 } from '../types';
 import {
   mockStocks,
@@ -349,11 +350,43 @@ export async function fetchTrendDates(): Promise<string[]> {
 // 「趋势 → 分析」板块聚合
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toTrendAnalysis(raw: any): TrendAnalysis {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const toComponents = (c: any = {}): TrendScoreComponents => ({
+    breakoutQuality: c.breakout_quality ?? c.breakoutQuality ?? undefined,
+    volumeSustain: c.volume_sustain ?? c.volumeSustain ?? undefined,
+    relativeStrength: c.relative_strength ?? c.relativeStrength ?? undefined,
+    sectorResonance: c.sector_resonance ?? c.sectorResonance ?? undefined,
+    netInflow: c.net_inflow ?? c.netInflow ?? undefined,
+    resilience: c.resilience ?? undefined,
+    restart: c.restart ?? undefined,
+    newHigh: c.new_high ?? c.newHigh ?? undefined,
+    freshness: c.freshness ?? undefined,
+  });
   return {
     date: raw.date ?? '',
     generatedAt: raw.generated_at ?? raw.generatedAt ?? '',
     candidateCount: raw.candidate_count ?? raw.candidateCount ?? 0,
+    shortlistCount: raw.shortlist_count ?? raw.shortlistCount ?? 0,
     source: raw.source ?? 'tencent',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stocks: (raw.stocks ?? []).map((s: any) => ({
+      code: s.code,
+      name: s.name,
+      price: s.price ?? undefined,
+      changePct: s.change_pct ?? s.changePct ?? 0,
+      sector: s.sector ?? undefined,
+      sectorType: s.sector_type ?? s.sectorType ?? undefined,
+      concept: s.concept ?? undefined,
+      score: s.score ?? 0,
+      smartMoneyScore: s.smart_money_score ?? s.smartMoneyScore ?? 0,
+      rsScore: s.rs_score ?? s.rsScore ?? 0,
+      freshness: s.freshness ?? 0,
+      breakoutDate: s.breakout_date ?? s.breakoutDate ?? undefined,
+      breakoutDays: s.breakout_days ?? s.breakoutDays ?? 0,
+      ret5Pct: s.ret5_pct ?? s.ret5Pct ?? undefined,
+      components: toComponents(s.components),
+      signals: s.signals ?? [],
+    })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sectors: (raw.sectors ?? []).map((s: any) => ({
       code: s.code,

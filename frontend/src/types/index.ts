@@ -174,8 +174,43 @@ export interface TrendAnalysis {
   date: string;
   generatedAt: string;
   candidateCount: number;
+  shortlistCount: number;      // Phase 2 压缩后的重点股数量
   source: string;              // tencent | mock
   sectors: SectorAnalysis[];
+  stocks: TrendStockScore[];
+}
+
+// 「趋势 → 分析」重点股评分分项（0~100）
+export interface TrendScoreComponents {
+  breakoutQuality?: number;    // 放量启动质量
+  volumeSustain?: number;      // 启动后量能保持
+  relativeStrength?: number;   // 个股相对强度
+  sectorResonance?: number;    // 板块共振
+  netInflow?: number;          // 资金（板块级代理）
+  resilience?: number;         // 回调资金稳定性（缩量回调）
+  restart?: number;            // 再次放量突破
+  newHigh?: number;            // 新高/突破
+  freshness?: number;          // 资金信号新鲜度
+}
+
+// 「趋势 → 分析」重点股（Phase 2：Smart Money / RS / Freshness）
+export interface TrendStockScore {
+  code: string;
+  name: string;
+  price?: number;
+  changePct: number;
+  sector?: string;             // 所属行业板块
+  sectorType?: string;
+  concept?: string;            // 命中的最强概念板块
+  score: number;               // Phase 2 综合分 0~100
+  smartMoneyScore: number;     // 资金行为评分
+  rsScore: number;             // 相对强度评分
+  freshness: number;           // 资金信号新鲜度
+  breakoutDate?: string;       // 放量启动日
+  breakoutDays: number;        // 距启动的交易日数
+  ret5Pct?: number;            // 近 5 日涨幅 %
+  components: TrendScoreComponents;
+  signals: string[];
 }
 
 export interface BulkAnalysisResult {

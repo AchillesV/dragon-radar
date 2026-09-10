@@ -48,7 +48,17 @@ def real_candidates():
     if stocks:
         trend_store.save_snapshot(date, stocks)
     return date, [
-        {"code": s.code, "name": s.name, "change_pct": s.change_pct} for s in stocks
+        {
+            "code": s.code,
+            "name": s.name,
+            "change_pct": s.change_pct,
+            "breakout_date": s.breakout_date,
+            "breakout_volume": s.breakout_volume,
+            "baseline_avg_volume": s.baseline_avg_volume,
+            "range_change_pct": s.range_change_pct,
+            "hit_count": s.hit_count,
+        }
+        for s in stocks
     ]
 
 
@@ -95,6 +105,26 @@ def main():
     print("\n[verify] 抽样明细（第 1 个板块）：")
     if res["sectors"]:
         print(json.dumps(res["sectors"][0], ensure_ascii=False, indent=2))
+
+    # ---- Phase 2：重点股（SmartMoney / RS / Freshness） ----
+    stocks = res.get("stocks", [])
+    print(f"\n[verify] 重点股（Phase 2 压缩后 {res.get('shortlist_count', len(stocks))} 只，"
+          f"候选池 {res['candidate_count']} 只）：")
+    print(f"  {'综合':>6} {'Smart':>6} {'RS':>6} {'新鲜':>6} {'距启动':>5} {'所属行业':<10} "
+          f"{'概念':<10} {'5日%':>7} 信号")
+    for st in stocks[:20]:
+        print(f"  {st['score']:>6.1f} {st['smart_money_score']:>6.1f} {st['rs_score']:>6.1f} "
+              f"{st['freshness']:>6.1f} {st['breakout_days']:>5} "
+              f"{str(st.get('sector')):<10} {str(st.get('concept')):<10} "
+              f"{str(st.get('ret5_pct')):>7} {'/'.join(st.get('signals') or [])}")
+
+    for st in stocks:
+        if not st.get("code"):
+            problems.append("重点股缺少 code")
+        for k in ("score", "smart_money_score", "rs_score", "freshness"):
+            v = st.get(k)
+            if v is None or v != v:
+                problems.append(f"{st.get('name')}: {k} 异常 {v}")
 
     if problems:
         print("\n[verify] 发现问题：")

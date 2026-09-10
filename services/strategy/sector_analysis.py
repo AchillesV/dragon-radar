@@ -29,6 +29,8 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 
+import stock_scores
+
 logger = logging.getLogger(__name__)
 
 _HEADERS = {
@@ -50,6 +52,10 @@ _MEMBER_TTL = 1800
 # 返回给前端的板块数（行业/概念各取一部分，合计不超过该值）
 TOP_INDUSTRY = 10
 TOP_CONCEPT = 14
+
+# 整体结果缓存（同一交易日 + 候选池规模，5 分钟内复用，避免重复拉 K 线/成分股）
+_ANALYSIS_CACHE: Dict[str, Tuple[float, dict]] = {}
+_ANALYSIS_TTL = 300
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +321,33 @@ def _score_board(board: dict, members: List[dict], candidates: List[dict]) -> di
 # 内置 mock（真实数据源整体不可用时兜底，保证前端始终有结构可渲染）
 _MOCK_ANALYSIS = {
     "source": "mock",
+    "shortlist_count": 2,
+    "stocks": [
+        {
+            "code": "000001", "name": "示例龙头", "price": 18.6, "change_pct": 9.9,
+            "sector": "机器人", "sector_type": "industry", "concept": "人形机器人",
+            "score": 89.4, "smart_money_score": 91.0, "rs_score": 88.0, "freshness": 86.0,
+            "breakout_date": "2026-09-08", "breakout_days": 2, "ret5_pct": 12.4,
+            "components": {
+                "breakout_quality": 82.0, "volume_sustain": 74.0, "relative_strength": 88.0,
+                "sector_resonance": 92.0, "net_inflow": 71.0, "resilience": 80.0,
+                "restart": 65.0, "new_high": 90.0, "freshness": 86.0,
+            },
+            "signals": ["放量启动质量高", "跑赢大盘/板块", "板块共振强", "信号新鲜"],
+        },
+        {
+            "code": "000002", "name": "示例中军", "price": 31.2, "change_pct": 6.2,
+            "sector": "半导体", "sector_type": "industry", "concept": "国产芯片",
+            "score": 81.2, "smart_money_score": 83.0, "rs_score": 79.0, "freshness": 74.0,
+            "breakout_date": "2026-09-05", "breakout_days": 3, "ret5_pct": 8.1,
+            "components": {
+                "breakout_quality": 70.0, "volume_sustain": 66.0, "relative_strength": 79.0,
+                "sector_resonance": 86.0, "net_inflow": 62.0, "resilience": 72.0,
+                "restart": 55.0, "new_high": 78.0, "freshness": 74.0,
+            },
+            "signals": ["跑赢大盘/板块", "板块共振强", "缩量回调"],
+        },
+    ],
     "sectors": [
         {
             "code": "mock_1", "name": "机器人", "type": "concept", "score": 92.0,
@@ -351,6 +384,7 @@ def _mock_result(session_date: str, candidate_count: int) -> dict:
         date=session_date,
         generated_at=datetime.datetime.now().isoformat(timespec="seconds"),
         candidate_count=candidate_count,
+        shortlist_count=len(_MOCK_ANALYSIS.get("stocks", [])),
     )
 
 
@@ -363,16 +397,24 @@ def build_analysis(candidates: List[dict], session_date: str) -> dict:
     """
     组装「趋势 → 分析」结果。
 
-    candidates: [{code, name, change_pct}, ...]（当日趋势候选池）
+    candidates: [{code, name, change_pct, breakout_date, breakout_volume,
+                  baseline_avg_volume, range_change_pct, hit_count}, ...]（当日趋势候选池）
     session_date: 最新交易日 YYYY-MM-DD
 
     流程：板块级指标排序 → 选定行业（全部，保证候选股都能归到行业）/ 概念（热度 TOP）→
-    拉取成分股 → 用候选池计算核心股强度与扩散度 → 输出行业/概念重点板块。
+    拉取成分股 → 用候选池计算核心股强度与扩散度 → 输出行业/概念重点板块 →
+    再对候选股逐股计算 SmartMoney / RS / Freshness（Phase 2），压缩到 SHORTLIST 只。
     """
     boards = _fetch_boards()
     if not boards:
         logger.warning("腾讯板块指标为空，/analysis 退化到 mock")
         return _mock_result(session_date, len(candidates))
+
+    cache_key = f"{session_date}|{len(candidates)}"
+    cached = _ANALYSIS_CACHE.get(cache_key)
+    now = time.time()
+    if cached and now - cached[0] < _ANALYSIS_TTL:
+        return cached[1]
 
     cand_by_code = {c["code"]: c for c in candidates}
 
@@ -392,20 +434,40 @@ def build_analysis(candidates: List[dict], session_date: str) -> dict:
         cands = [c for code, c in cand_by_code.items() if code in member_codes]
         return _score_board(b, members_map.get(b["code"], []), cands)
 
-    industries_scored = sorted(
-        (score_one(b) for b in industries), key=lambda s: s["score"], reverse=True
-    )[:TOP_INDUSTRY]
-    concepts_scored = sorted(
-        (score_one(b) for b in top_concepts), key=lambda s: s["score"], reverse=True
-    )
+    industries_all = [score_one(b) for b in industries]
+    concepts_all = [score_one(b) for b in top_concepts]
+    industries_scored = sorted(industries_all, key=lambda s: s["score"], reverse=True)[:TOP_INDUSTRY]
+    concepts_scored = sorted(concepts_all, key=lambda s: s["score"], reverse=True)
 
     sectors = sorted(industries_scored + concepts_scored,
                      key=lambda s: s["score"], reverse=True)
 
-    return {
+    # ---- 代码 → 板块 反查（供个股评分定位所属行业/概念） ----
+    scored_by_code = {s["code"]: s for s in industries_all + concepts_all}
+    industry_of: Dict[str, dict] = {}
+    for b in industries:
+        for m in members_map.get(b["code"], []):
+            industry_of.setdefault(m["code"], scored_by_code[b["code"]])
+    concepts_of: Dict[str, List[dict]] = {}
+    for b in top_concepts:
+        for m in members_map.get(b["code"], []):
+            concepts_of.setdefault(m["code"], []).append(scored_by_code[b["code"]])
+
+    # ---- Phase 2：候选股逐股 SmartMoney / RS / Freshness，压缩到 SHORTLIST 只 ----
+    try:
+        stocks = stock_scores.score_candidates(candidates, industry_of, concepts_of, session_date)
+    except Exception as e:
+        logger.warning(f"个股评分失败，本轮跳过 stocks: {e}")
+        stocks = []
+
+    result = {
         "date": session_date,
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "candidate_count": len(candidates),
+        "shortlist_count": len(stocks),
         "source": "tencent",
         "sectors": sectors,
+        "stocks": stocks,
     }
+    _ANALYSIS_CACHE[cache_key] = (now, result)
+    return result

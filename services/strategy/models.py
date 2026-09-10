@@ -110,10 +110,45 @@ class SectorAnalysis(BaseModel):
     signals: List[str] = []          # 策略信号（非买卖结论）
 
 
+class TrendScoreComponents(BaseModel):
+    """个股评分各分项（0~100，供前端展开）"""
+    breakout_quality: Optional[float] = None   # 放量启动质量
+    volume_sustain: Optional[float] = None     # 启动后量能保持
+    relative_strength: Optional[float] = None  # 个股相对强度
+    sector_resonance: Optional[float] = None   # 板块共振
+    net_inflow: Optional[float] = None         # 资金（板块级代理）
+    resilience: Optional[float] = None         # 回调资金稳定性（缩量回调）
+    restart: Optional[float] = None            # 再次放量突破
+    new_high: Optional[float] = None           # 新高/突破
+    freshness: Optional[float] = None          # 资金信号新鲜度
+
+
+class TrendStockScore(BaseModel):
+    """「趋势 → 分析」重点股（Phase 2：Smart Money / RS / Freshness）"""
+    code: str
+    name: str
+    price: Optional[float] = None
+    change_pct: float = 0.0
+    sector: Optional[str] = None               # 所属行业板块
+    sector_type: Optional[str] = None
+    concept: Optional[str] = None              # 命中的最强概念板块
+    score: float = 0.0                         # Phase 2 综合分（0~100）
+    smart_money_score: float = 0.0             # 资金行为评分
+    rs_score: float = 0.0                      # 相对强度评分
+    freshness: float = 0.0                     # 资金信号新鲜度
+    breakout_date: Optional[str] = None        # 放量启动日
+    breakout_days: int = 0                     # 距启动的交易日数
+    ret5_pct: Optional[float] = None           # 近 5 日涨幅 %
+    components: TrendScoreComponents = TrendScoreComponents()
+    signals: List[str] = []
+
+
 class TrendAnalysis(BaseModel):
     """「趋势 → 分析」页面数据"""
     date: str
     generated_at: str
     candidate_count: int             # 参与聚合的趋势候选股数量
+    shortlist_count: int = 0         # Phase 2 压缩后的重点股数量
     source: str = "tencent"         # 数据来源：tencent | mock
     sectors: List[SectorAnalysis] = []
+    stocks: List[TrendStockScore] = []

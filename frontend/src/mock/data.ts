@@ -1341,7 +1341,43 @@ export const mockTrendAnalysis: TrendAnalysis = {
   date: '2026-09-10',
   generatedAt: '2026-09-10T15:20:00',
   candidateCount: 281,
+  shortlistCount: 3,
   source: 'mock',
+  stocks: [
+    {
+      code: '688017', name: '绿的谐波', price: 128.6, changePct: 9.9,
+      sector: '机械设备', sectorType: 'industry', concept: '人形机器人',
+      score: 90.2, smartMoneyScore: 93.1, rsScore: 86.4, freshness: 86.0,
+      breakoutDate: '2026-09-08', breakoutDays: 2, ret5Pct: 13.2,
+      components: {
+        breakoutQuality: 84, volumeSustain: 76, relativeStrength: 86, sectorResonance: 92,
+        netInflow: 72, resilience: 81, restart: 68, newHigh: 92, freshness: 86,
+      },
+      signals: ['放量启动质量高', '跑赢大盘/板块', '板块共振强', '信号新鲜'],
+    },
+    {
+      code: '002371', name: '北方华创', price: 412.0, changePct: 7.8,
+      sector: '半导体', sectorType: 'industry', concept: '国产芯片',
+      score: 84.6, smartMoneyScore: 86.2, rsScore: 82.1, freshness: 74.0,
+      breakoutDate: '2026-09-05', breakoutDays: 3, ret5Pct: 9.4,
+      components: {
+        breakoutQuality: 78, volumeSustain: 70, relativeStrength: 82, sectorResonance: 88,
+        netInflow: 66, resilience: 74, restart: 58, newHigh: 84, freshness: 74,
+      },
+      signals: ['跑赢大盘/板块', '板块共振强', '缩量回调'],
+    },
+    {
+      code: '002472', name: '双环传动', price: 38.9, changePct: 6.2,
+      sector: '汽车零部件', sectorType: 'industry', concept: '人形机器人',
+      score: 78.3, smartMoneyScore: 80.5, rsScore: 76.0, freshness: 60.0,
+      breakoutDate: '2026-09-02', breakoutDays: 4, ret5Pct: 6.1,
+      components: {
+        breakoutQuality: 70, volumeSustain: 64, relativeStrength: 76, sectorResonance: 84,
+        netInflow: 60, resilience: 70, restart: 52, newHigh: 76, freshness: 60,
+      },
+      signals: ['板块共振强', '缩量回调'],
+    },
+  ],
   sectors: [
     {
       code: 'gn_jqr', name: '机器人', type: 'concept', score: 92.4, changePct: 3.86,

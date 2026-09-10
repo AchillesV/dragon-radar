@@ -9,8 +9,11 @@ import { useTheme } from '../../hooks/useTheme';
 import { COLORS, type RawColors } from '../../constants/colors';
 import { LoadingState, EmptyState, ErrorState } from '../common/StatusStates';
 import { formatChangePct } from '../../utils/format';
-import type { SectorAnalysis } from '../../types';
+import type { SectorAnalysis, TrendStockScore } from '../../types';
 import SectorHeatCard, { starsOf, scoreColor } from './SectorHeatCard';
+import CandidateRankCard, { CandidateDetail } from './CandidateRankCard';
+
+const SHOW_STOCKS = 20;
 
 function buildHeatOption(sectors: SectorAnalysis[], c: RawColors) {
   const top = [...sectors].slice(0, 10).sort((a, b) => a.score - b.score);
@@ -157,6 +160,7 @@ export default function TrendAnalysisView({ selectedDate, onDateChange }: {
   const { rawColors } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [active, setActive] = useState<SectorAnalysis | null>(null);
+  const [activeStock, setActiveStock] = useState<TrendStockScore | null>(null);
   const syncMutation = useSyncTrendStocks();
 
   const isLatest = selectedDate === undefined;
@@ -184,6 +188,7 @@ export default function TrendAnalysisView({ selectedDate, onDateChange }: {
   ];
 
   const sectors = data?.sectors ?? [];
+  const stocks = data?.stocks ?? [];
 
   return (
     <div>
@@ -203,6 +208,7 @@ export default function TrendAnalysisView({ selectedDate, onDateChange }: {
           </div>
           <div style={{ fontSize: 12, color: COLORS.textMuted }}>
             趋势候选池 {data?.candidateCount ?? 0} 只 → 重点板块 {sectors.length} 个
+            {stocks.length > 0 && <span> · 重点股 {data?.shortlistCount ?? stocks.length} 只</span>}
             {data?.date && <span> · {data.date}</span>}
             {!isLatest && <span> · 历史：{selectedDate}</span>}
             {data?.source === 'mock' && <span style={{ color: COLORS.chartGold }}> · 数据源异常，展示示例</span>}
@@ -266,6 +272,25 @@ export default function TrendAnalysisView({ selectedDate, onDateChange }: {
           {sectors.map((s, i) => (
             <SectorHeatCard key={s.code} sector={s} rank={i + 1} onClick={() => setActive(s)} />
           ))}
+
+          {stocks.length > 0 && (
+            <>
+              <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.textSecondary, margin: '18px 0 8px' }}>
+                ⭐ 候选股票 · Smart Money 精选（{data?.shortlistCount ?? stocks.length}）
+                <span style={{ color: COLORS.textMuted, fontWeight: 400, fontSize: 12 }}>
+                  {' '}· 候选池 {data?.candidateCount ?? 0} → {data?.shortlistCount ?? stocks.length}（点击查看评分）
+                </span>
+              </div>
+              {stocks.slice(0, SHOW_STOCKS).map((st, i) => (
+                <CandidateRankCard key={st.code} stock={st} rank={i + 1} onClick={() => setActiveStock(st)} />
+              ))}
+              {stocks.length > SHOW_STOCKS && (
+                <div style={{ fontSize: 12, color: COLORS.textMuted, textAlign: 'center', marginBottom: 8 }}>
+                  已展示前 {SHOW_STOCKS} 只，共 {stocks.length} 只重点股
+                </div>
+              )}
+            </>
+          )}
         </>
       )}
 
@@ -278,8 +303,10 @@ export default function TrendAnalysisView({ selectedDate, onDateChange }: {
         💡 <strong style={{ color: COLORS.textSecondary }}>口径说明</strong>：
         板块取自腾讯行业 + 概念板块；「扩散度」按板块全成分股（腾讯）与趋势候选池个股的并集计算，
         综合上涨家数占比、涨幅≥3% 占比与涨停数。板块涨跌幅、资金（主力净额/成交额）、量比全部来自
-        腾讯板块级指标（东财接口在生产环境不可用，故不接入）。本页仅提供策略信号与条件触发指标，
-        不构成买入/卖出建议。
+        腾讯板块级指标（东财接口在生产环境不可用，故不接入）。
+        「重点股」在候选池上叠加 Smart Money（放量启动质量 / 量能保持 / 相对强度 / 板块共振 / 资金
+        代理 / 缩量回调 / 二次放量 / 新高 / 新鲜度）、相对强度 RS（对标沪深300・中证1000・行业・概念）
+        与信号新鲜度，压缩到 50 只。本页仅提供策略信号与条件触发指标，不构成买入/卖出建议。
       </div>
 
       <Drawer
@@ -292,6 +319,18 @@ export default function TrendAnalysisView({ selectedDate, onDateChange }: {
         styles={{ body: { background: COLORS.bgCard }, header: { background: COLORS.bgCard } }}
       >
         {active && <SectorDetail sector={active} />}
+      </Drawer>
+
+      <Drawer
+        placement={isMobile ? 'bottom' : 'right'}
+        height={isMobile ? '78vh' : undefined}
+        width={isMobile ? undefined : 420}
+        open={!!activeStock}
+        onClose={() => setActiveStock(null)}
+        title={activeStock ? `${activeStock.name} · ${activeStock.code}` : ''}
+        styles={{ body: { background: COLORS.bgCard }, header: { background: COLORS.bgCard } }}
+      >
+        {activeStock && <CandidateDetail stock={activeStock} />}
       </Drawer>
     </div>
   );
