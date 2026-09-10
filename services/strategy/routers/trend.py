@@ -26,7 +26,8 @@ import pandas as pd
 from fastapi import APIRouter
 
 import trend_store
-from models import TrendStock
+import sector_analysis
+from models import TrendStock, TrendAnalysis
 from routers.screening import _fetch_hist_tencent
 
 logger = logging.getLogger(__name__)
@@ -304,3 +305,49 @@ async def sync_trend_candidates():
 async def get_trend_dates():
     """最近有快照的交易日列表（倒序），供前端「近10天」下拉筛选使用。"""
     return trend_store.list_dates(limit=LOOKBACK_TRADING_DAYS)
+
+
+def _load_candidates(session_date: str, allow_compute: bool) -> List[TrendStock]:
+    """
+    取某交易日的趋势候选池：优先读已落库快照。
+    allow_compute=True（最新交易日）时，当天无快照才触发一次全市场扫描并落库；
+    allow_compute=False（历史回看）时只读快照，不触发扫描（避免把当前数据写进历史日期）。
+    """
+    stocks = trend_store.load_snapshot(session_date)
+    if stocks or not allow_compute:
+        return stocks
+    try:
+        stocks = _compute_trend_stocks()
+        if stocks:
+            trend_store.save_snapshot(session_date, stocks)
+    except Exception as e:
+        logger.warning(f"趋势候选池计算失败: {e}")
+    return stocks
+
+
+@router.get("/analysis", response_model=TrendAnalysis)
+async def get_trend_analysis(date: Optional[str] = None):
+    """
+    「趋势 → 分析」：把当日趋势候选池按板块（新浪行业/概念）聚合，输出板块热度、
+    量能趋势、量价共振（资金代理）与扩散度，压缩到 10~20 个重点板块。
+
+    - 不传 date：基于最新交易日的候选池计算。
+    - 传 date：基于该交易日的候选池快照计算（历史回看）。
+    数据源整体异常时返回内置 mock，保证前端始终有结构可渲染。
+    """
+    session_date = date or _get_session_date()
+    stocks = _load_candidates(session_date, allow_compute=date is None)
+    candidates = [
+        {"code": s.code, "name": s.name, "change_pct": s.change_pct}
+        for s in stocks
+    ]
+    try:
+        return sector_analysis.build_analysis(candidates, session_date)
+    except Exception as e:
+        logger.warning(f"板块分析失败，退化到 mock: {e}")
+        return {
+            **sector_analysis._MOCK_ANALYSIS,
+            "date": session_date,
+            "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+            "candidate_count": len(candidates),
+        }

@@ -13,6 +13,7 @@ import type {
   OperationGuide,
   TrendStock,
   MainlineStock,
+  TrendAnalysis,
 } from '../types';
 import {
   mockStocks,
@@ -27,6 +28,7 @@ import {
   mockAnomalyStocks,
   mockTrendStocks,
   mockMainlineStocks,
+  mockTrendAnalysis,
 } from '../mock/data';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
@@ -342,6 +344,59 @@ export async function fetchTrendDates(): Promise<string[]> {
   if (USE_MOCK) { await delay(200); return mockTrendStocks.length ? ['2026-07-31'] : []; }
   const res = await http.get('/screening/trend/dates');
   return res.data as string[];
+}
+
+// 「趋势 → 分析」板块聚合
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toTrendAnalysis(raw: any): TrendAnalysis {
+  return {
+    date: raw.date ?? '',
+    generatedAt: raw.generated_at ?? raw.generatedAt ?? '',
+    candidateCount: raw.candidate_count ?? raw.candidateCount ?? 0,
+    source: raw.source ?? 'tencent',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sectors: (raw.sectors ?? []).map((s: any) => ({
+      code: s.code,
+      name: s.name,
+      type: s.type === 'concept' ? 'concept' : 'industry',
+      score: s.score ?? 0,
+      changePct: s.change_pct ?? s.changePct ?? 0,
+      change5Pct: s.change5_pct ?? s.change5Pct ?? undefined,
+      change20Pct: s.change20_pct ?? s.change20Pct ?? undefined,
+      lb: s.lb ?? undefined,
+      netInflowPct: s.net_inflow_pct ?? s.netInflowPct ?? undefined,
+      netInflow5Pct: s.net_inflow5_pct ?? s.netInflow5Pct ?? undefined,
+      breadthScore: s.breadth_score ?? s.breadthScore ?? undefined,
+      upRatio: s.up_ratio ?? s.upRatio ?? undefined,
+      totalCount: s.total_count ?? s.totalCount ?? 0,
+      upCount: s.up_count ?? s.upCount ?? 0,
+      downCount: s.down_count ?? s.downCount ?? 0,
+      strong3Count: s.strong3_count ?? s.strong3Count ?? 0,
+      strong5Count: s.strong5_count ?? s.strong5Count ?? 0,
+      limitUpCount: s.limit_up_count ?? s.limitUpCount ?? 0,
+      leadStock: s.lead_stock ?? s.leadStock ?? undefined,
+      candidateCount: s.candidate_count ?? s.candidateCount ?? 0,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      candidates: (s.candidates ?? []).map((c: any) => ({
+        code: c.code,
+        name: c.name,
+        changePct: c.change_pct ?? c.changePct ?? 0,
+        isCandidate: c.is_candidate ?? c.isCandidate ?? true,
+        isLead: c.is_lead ?? c.isLead ?? false,
+      })),
+      signals: s.signals ?? [],
+    })),
+  };
+}
+
+export async function fetchTrendAnalysis(date?: string): Promise<TrendAnalysis> {
+  if (USE_MOCK) { await delay(500); return mockTrendAnalysis; }
+  // 首次访问时后端会聚合板块（首次拉取板块成分股可能耗时数十秒），用较长超时
+  const res = await http.get('/screening/trend/analysis', {
+    timeout: 180000,
+    params: date ? { date } : undefined,
+  });
+  return toTrendAnalysis(res.data);
 }
 
 // 「主线」核心票
