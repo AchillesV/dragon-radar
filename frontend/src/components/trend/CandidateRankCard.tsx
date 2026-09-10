@@ -25,6 +25,17 @@ const ROLE_COLOR: Record<string, string> = {
   '补涨': 'default',
 };
 
+const BUY_COLOR: Record<string, string> = {
+  BREAKOUT: 'red',
+  RESTART: 'volcano',
+  PULLBACK: 'green',
+  TREND: 'blue',
+  ACCELERATION: 'orange',
+  OVERHEATED: 'gold',
+  EXIT_RISK: 'default',
+  WAIT: 'default',
+};
+
 /** 候选池里单只重点股（Phase 2：Smart Money / RS / Freshness） */
 export default function CandidateRankCard({
   stock,
@@ -62,6 +73,12 @@ export default function CandidateRankCard({
           </span>
           <span style={{ fontSize: 12, color: COLORS.textMuted }}>{stock.code}</span>
           {stock.isCore && <Tag color="red" style={{ marginInlineEnd: 0, fontSize: 10, lineHeight: '16px' }}>核心</Tag>}
+          {stock.isPick && <Tag color="gold" style={{ marginInlineEnd: 0, fontSize: 10, lineHeight: '16px' }}>★标的</Tag>}
+          {stock.buyStatusLabel && (
+            <Tag color={BUY_COLOR[stock.buyStatus] ?? 'default'} style={{ marginInlineEnd: 0, fontSize: 10, lineHeight: '16px' }}>
+              {stock.buyStatusLabel}
+            </Tag>
+          )}
           {stock.ladderRole && (
             <Tag color={ROLE_COLOR[stock.ladderRole] ?? 'default'} style={{ marginInlineEnd: 0, fontSize: 10, lineHeight: '16px' }}>
               {stock.ladderRole}
@@ -92,6 +109,7 @@ export default function CandidateRankCard({
         <Mini label="相对强度" value={stock.rsScore.toFixed(0)} />
         <Mini label="新鲜度" value={stock.freshness.toFixed(0)} />
         <Mini label="距启动" value={`${stock.breakoutDays}日`} />
+        {stock.lifecycleLabel && <Mini label="资金阶段" value={stock.lifecycleLabel} />}
       </div>
 
       {stock.signals.length > 0 && (
@@ -147,6 +165,33 @@ export function CandidateDetail({ stock }: { stock: TrendStockScore }) {
         <Mini label="核心分" value={stock.coreScore.toFixed(0)} />
         <Mini label="相对强度 RS" value={stock.rsScore.toFixed(0)} />
         <Mini label="新鲜度" value={stock.freshness.toFixed(0)} />
+      </div>
+
+      {stock.lifecyclePath.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 6 }}>资金生命周期</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 13 }}>
+            {stock.lifecyclePath.map((p, i) => (
+              <span key={`${p}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {i > 0 && <span style={{ color: COLORS.textMuted }}>→</span>}
+                <span style={{
+                  color: i === stock.lifecyclePath.length - 1 ? COLORS.chartRed : COLORS.textSecondary,
+                  fontWeight: i === stock.lifecyclePath.length - 1 ? 700 : 400,
+                }}>
+                  {i === stock.lifecyclePath.length - 1 ? `★ ${p} · 当前` : p}
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginBottom: 16 }}>
+        <span style={{ fontSize: 12, color: COLORS.textMuted, marginRight: 6 }}>当前状态</span>
+        <Tag color={BUY_COLOR[stock.buyStatus] ?? 'default'}>{stock.buyStatusLabel || '—'}</Tag>
+        {stock.buyStatus === 'ACCELERATION' && <span style={{ fontSize: 11, color: COLORS.textMuted }}>加速拉升，不建议追高</span>}
+        {stock.buyStatus === 'OVERHEATED' && <span style={{ fontSize: 11, color: COLORS.textMuted }}>高位分歧，注意波动</span>}
+        {stock.buyStatus === 'EXIT_RISK' && <span style={{ fontSize: 11, color: COLORS.textMuted }}>跌破结构，注意风险</span>}
       </div>
 
       <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 8 }}>核心股评分构成（CoreScore）</div>

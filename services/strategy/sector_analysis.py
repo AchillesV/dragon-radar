@@ -326,6 +326,7 @@ _MOCK_ANALYSIS = {
     "source": "mock",
     "shortlist_count": 2,
     "core_count": 2,
+    "final_count": 2,
     "stocks": [
         {
             "code": "000001", "name": "示例龙头", "price": 18.6, "change_pct": 9.9,
@@ -334,6 +335,9 @@ _MOCK_ANALYSIS = {
             "breakout_date": "2026-09-08", "breakout_days": 2, "ret5_pct": 12.4,
             "sector_code": "mock_1", "rank_in_sector": 1, "sector_size": 3,
             "ladder_role": "龙头", "is_core": True,
+            "lifecycle_stage": 3, "lifecycle_label": "趋势确认",
+            "lifecycle_path": ["资金试探", "放量启动", "趋势确认"],
+            "buy_status": "PULLBACK", "buy_status_label": "缩量回踩", "is_pick": True,
             "components": {
                 "breakout_quality": 82.0, "volume_sustain": 74.0, "relative_strength": 88.0,
                 "sector_resonance": 92.0, "net_inflow": 71.0, "resilience": 80.0,
@@ -348,6 +352,9 @@ _MOCK_ANALYSIS = {
             "breakout_date": "2026-09-05", "breakout_days": 3, "ret5_pct": 8.1,
             "sector_code": "mock_2", "rank_in_sector": 2, "sector_size": 3,
             "ladder_role": "核心中军", "is_core": True,
+            "lifecycle_stage": 2, "lifecycle_label": "放量启动",
+            "lifecycle_path": ["资金试探", "放量启动"],
+            "buy_status": "RESTART", "buy_status_label": "二次启动", "is_pick": True,
             "components": {
                 "breakout_quality": 70.0, "volume_sustain": 66.0, "relative_strength": 79.0,
                 "sector_resonance": 86.0, "net_inflow": 62.0, "resilience": 72.0,
@@ -400,6 +407,7 @@ def _mock_result(session_date: str, candidate_count: int) -> dict:
         generated_at=datetime.datetime.now().isoformat(timespec="seconds"),
         candidate_count=candidate_count,
         shortlist_count=len(_MOCK_ANALYSIS.get("stocks", [])),
+        final_count=_MOCK_ANALYSIS.get("final_count", 0),
     )
 
 
@@ -552,12 +560,29 @@ def build_analysis(candidates: List[dict], session_date: str) -> dict:
         st["is_core"] = i < stock_scores.CORE_COUNT
     core_count = min(stock_scores.CORE_COUNT, len(stocks))
 
+    # ---- Phase 4：从核心股筛出最终交易标的（5~10 只，买点可关注） ----
+    core = [st for st in stocks if st["is_core"]]
+    picks = [st for st in core if st.get("buy_status") in stock_scores.PICK_BUY_STATUS][:10]
+    if len(picks) < 5:   # 保证至少 5 只
+        chosen = {st["code"] for st in picks}
+        for st in core:
+            if len(picks) >= 5:
+                break
+            if st["code"] not in chosen:
+                picks.append(st)
+                chosen.add(st["code"])
+    pick_codes = {st["code"] for st in picks}
+    for st in stocks:
+        st["is_pick"] = st["code"] in pick_codes
+    final_count = len(picks)
+
     result = {
         "date": session_date,
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "candidate_count": len(candidates),
         "shortlist_count": len(stocks),
         "core_count": core_count,
+        "final_count": final_count,
         "source": "tencent",
         "sectors": sectors,
         "stocks": stocks,

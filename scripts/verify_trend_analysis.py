@@ -141,6 +141,16 @@ def main():
               f"{st['name']}（{st.get('sector')} 第{st.get('rank_in_sector')}/{st.get('sector_size')}，"
               f"SM{st['smart_money_score']:.0f} RS{st['rs_score']:.0f}）")
 
+    # ---- Phase 4：资金生命周期 + 买点状态 + 交易信号 ----
+    from collections import Counter
+    print(f"\n[verify] 生命周期分布：{dict(Counter(st.get('lifecycle_label') for st in stocks))}")
+    print(f"[verify] 买点状态分布：{dict(Counter(st.get('buy_status') for st in stocks))}")
+    picks = [st for st in stocks if st.get("is_pick")]
+    print(f"\n[verify] 交易信号 {len(picks)} 只（Phase 4：核心股 → 买点筛出 5~10）：")
+    for st in picks:
+        print(f"  {st['score']:>5.1f} core{st['core_score']:>5.1f} stage{st.get('lifecycle_stage')} "
+              f"{st.get('lifecycle_label'):<4} {st.get('buy_status_label'):<8} {st['name']}")
+
     if problems:
         print("\n[verify] 发现问题：")
         for p in problems:

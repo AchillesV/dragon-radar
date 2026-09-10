@@ -178,6 +178,7 @@ export interface TrendAnalysis {
   candidateCount: number;
   shortlistCount: number;      // Phase 2 压缩后的重点股数量
   coreCount: number;           // Phase 3 核心股数量
+  finalCount: number;          // Phase 4 最终交易标的数量（5~10）
   source: string;              // tencent | mock
   sectors: SectorAnalysis[];
   stocks: TrendStockScore[];
@@ -222,6 +223,12 @@ export interface TrendStockScore {
   isCore: boolean;             // 是否进入核心股 TOP
   breakoutDate?: string;       // 放量启动日
   breakoutDays: number;        // 距启动的交易日数
+  lifecycleStage: number;      // 资金生命周期阶段 1~6
+  lifecycleLabel: string;      // 阶段名
+  lifecyclePath: string[];     // 阶段路径
+  buyStatus: string;           // 买点状态枚举
+  buyStatusLabel: string;      // 买点状态中文名
+  isPick: boolean;             // 是否进入最终交易标的（5~10 只）
   ret5Pct?: number;            // 近 5 日涨幅 %
   components: TrendScoreComponents;
   signals: string[];

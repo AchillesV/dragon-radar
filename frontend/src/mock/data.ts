@@ -1343,6 +1343,7 @@ export const mockTrendAnalysis: TrendAnalysis = {
   candidateCount: 281,
   shortlistCount: 3,
   coreCount: 2,
+  finalCount: 2,
   source: 'mock',
   stocks: [
     {
@@ -1351,6 +1352,9 @@ export const mockTrendAnalysis: TrendAnalysis = {
       score: 90.2, coreScore: 91.5, smartMoneyScore: 93.1, rsScore: 86.4, freshness: 86.0,
       breakoutDate: '2026-09-08', breakoutDays: 2, ret5Pct: 13.2,
       sectorCode: 'new_jx', rankInSector: 1, sectorSize: 3, ladderRole: '龙头', isCore: true,
+      lifecycleStage: 3, lifecycleLabel: '趋势确认',
+      lifecyclePath: ['资金试探', '放量启动', '趋势确认'],
+      buyStatus: 'PULLBACK', buyStatusLabel: '缩量回踩', isPick: true,
       components: {
         breakoutQuality: 84, volumeSustain: 76, relativeStrength: 86, sectorResonance: 92,
         netInflow: 72, resilience: 81, restart: 68, newHigh: 92, freshness: 86,
@@ -1363,6 +1367,9 @@ export const mockTrendAnalysis: TrendAnalysis = {
       score: 84.6, coreScore: 84.0, smartMoneyScore: 86.2, rsScore: 82.1, freshness: 74.0,
       breakoutDate: '2026-09-05', breakoutDays: 3, ret5Pct: 9.4,
       sectorCode: 'new_dzxx', rankInSector: 2, sectorSize: 3, ladderRole: '核心中军', isCore: true,
+      lifecycleStage: 2, lifecycleLabel: '放量启动',
+      lifecyclePath: ['资金试探', '放量启动'],
+      buyStatus: 'RESTART', buyStatusLabel: '二次启动', isPick: true,
       components: {
         breakoutQuality: 78, volumeSustain: 70, relativeStrength: 82, sectorResonance: 88,
         netInflow: 66, resilience: 74, restart: 58, newHigh: 84, freshness: 74,
@@ -1375,6 +1382,9 @@ export const mockTrendAnalysis: TrendAnalysis = {
       score: 78.3, coreScore: 74.0, smartMoneyScore: 80.5, rsScore: 76.0, freshness: 60.0,
       breakoutDate: '2026-09-02', breakoutDays: 4, ret5Pct: 6.1,
       sectorCode: 'new_qclbj', rankInSector: 3, sectorSize: 3, ladderRole: '趋势跟随', isCore: false,
+      lifecycleStage: 4, lifecycleLabel: '趋势加速',
+      lifecyclePath: ['资金试探', '放量启动', '趋势确认', '趋势加速'],
+      buyStatus: 'ACCELERATION', buyStatusLabel: '加速（不建议追）', isPick: false,
       components: {
         breakoutQuality: 70, volumeSustain: 64, relativeStrength: 76, sectorResonance: 84,
         netInflow: 60, resilience: 70, restart: 52, newHigh: 76, freshness: 60,

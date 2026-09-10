@@ -169,6 +169,12 @@ class TrendStockScore(BaseModel):
     is_core: bool = False                      # 是否进入核心股 TOP
     breakout_date: Optional[str] = None        # 放量启动日
     breakout_days: int = 0                     # 距启动的交易日数
+    lifecycle_stage: int = 1                   # 资金生命周期阶段 1~6
+    lifecycle_label: str = ""                  # 阶段名：试探/启动/确认/加速/分歧/撤退
+    lifecycle_path: List[str] = []             # 阶段路径（用于回放展示）
+    buy_status: str = ""                       # 买点状态枚举
+    buy_status_label: str = ""                 # 买点状态中文名
+    is_pick: bool = False                      # 是否进入最终交易标的（5~10 只）
     ret5_pct: Optional[float] = None           # 近 5 日涨幅 %
     components: TrendScoreComponents = TrendScoreComponents()
     signals: List[str] = []
@@ -181,6 +187,7 @@ class TrendAnalysis(BaseModel):
     candidate_count: int             # 参与聚合的趋势候选股数量
     shortlist_count: int = 0         # Phase 2 压缩后的重点股数量
     core_count: int = 0              # Phase 3 核心股数量
+    final_count: int = 0             # Phase 4 最终交易标的数量（5~10）
     source: str = "tencent"         # 数据来源：tencent | mock
     sectors: List[SectorAnalysis] = []
     stocks: List[TrendStockScore] = []

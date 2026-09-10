@@ -382,6 +382,7 @@ function toTrendAnalysis(raw: any): TrendAnalysis {
     candidateCount: raw.candidate_count ?? raw.candidateCount ?? 0,
     shortlistCount: raw.shortlist_count ?? raw.shortlistCount ?? 0,
     coreCount: raw.core_count ?? raw.coreCount ?? 0,
+    finalCount: raw.final_count ?? raw.finalCount ?? 0,
     source: raw.source ?? 'tencent',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     stocks: (raw.stocks ?? []).map((s: any) => ({
@@ -405,6 +406,12 @@ function toTrendAnalysis(raw: any): TrendAnalysis {
       isCore: s.is_core ?? s.isCore ?? false,
       breakoutDate: s.breakout_date ?? s.breakoutDate ?? undefined,
       breakoutDays: s.breakout_days ?? s.breakoutDays ?? 0,
+      lifecycleStage: s.lifecycle_stage ?? s.lifecycleStage ?? 1,
+      lifecycleLabel: s.lifecycle_label ?? s.lifecycleLabel ?? '',
+      lifecyclePath: s.lifecycle_path ?? s.lifecyclePath ?? [],
+      buyStatus: s.buy_status ?? s.buyStatus ?? '',
+      buyStatusLabel: s.buy_status_label ?? s.buyStatusLabel ?? '',
+      isPick: s.is_pick ?? s.isPick ?? false,
       ret5Pct: s.ret5_pct ?? s.ret5Pct ?? undefined,
       components: toComponents(s.components),
       signals: s.signals ?? [],

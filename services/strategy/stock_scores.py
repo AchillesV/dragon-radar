@@ -88,6 +88,101 @@ def _fetch_index_ret5(code_full: str, days: int = 25) -> Optional[float]:
     return ret
 
 
+# ---- 资金生命周期（设计文档 §22）与买点状态（§23）----
+STAGE_LABELS = {
+    1: "资金试探",
+    2: "放量启动",
+    3: "趋势确认",
+    4: "趋势加速",
+    5: "高位分歧",
+    6: "资金撤退",
+}
+BUY_LABELS = {
+    "BREAKOUT": "突破确认",
+    "PULLBACK": "缩量回踩",
+    "RESTART": "二次启动",
+    "TREND": "趋势运行",
+    "ACCELERATION": "加速（不建议追）",
+    "OVERHEATED": "过热",
+    "WAIT": "等待",
+    "EXIT_RISK": "退出风险",
+}
+
+
+def _lifecycle_buy(volumes, closes, highs, pcts, d_idx, b_avg,
+                   restart_score: float, new_high_score: float,
+                   resilience: float):
+    """
+    根据放量启动日 D 之后的量价演化，判定当前资金生命周期阶段与买点状态。
+
+    阶段（§22，量价特征）：
+      1 资金试探：量↑ 价→（缩量横盘）
+      2 放量启动：量↑↑ 价↑↑（刚启动）
+      3 趋势确认：量稳 价持续上行
+      4 趋势加速：量再放大 价快速上涨
+      5 高位分歧：量极大 涨幅收敛/上影
+      6 资金撤退：放量下跌、跌破结构
+    """
+    n = len(closes)
+    days_since = (n - 1 - d_idx) if d_idx >= 0 else 6
+    last = pcts[-1] if pcts else 0.0
+    cum_d = ((closes[-1] / closes[d_idx] - 1) * 100) if (d_idx >= 0 and closes[d_idx] > 0) else 0.0
+    v_ratio = (volumes[-1] / b_avg) if b_avg > 0 else 1.0
+    recent_v = volumes[-3:] or volumes
+    v3 = (sum(recent_v) / len(recent_v) / b_avg) if b_avg > 0 else 1.0
+    up3 = ((closes[-1] / closes[-4] - 1) * 100) if (n >= 4 and closes[-4] > 0) else 0.0
+    upper_shadow = ((highs[-1] - closes[-1]) / closes[-1] * 100) if closes[-1] > 0 else 0.0
+    below_d = d_idx >= 0 and closes[-1] < closes[d_idx]
+
+    # ---- 生命周期阶段 ----
+    if below_d and cum_d <= -3:
+        stage = 6
+    elif last <= -3 and v_ratio >= 1.3:
+        stage = 6
+    elif below_d and last < -2:
+        stage = 6
+    elif (v3 >= 2.2 and up3 <= 3) or (upper_shadow >= 5 and days_since >= 2):
+        stage = 5
+    elif days_since >= 2 and up3 >= 8 and v_ratio >= 1.4:
+        stage = 4
+    elif days_since <= 2:
+        stage = 2                     # 刚放量启动（启动日/次日）
+    elif days_since >= 3 and cum_d >= 5:
+        stage = 3                     # 启动后持续上行 → 趋势确认
+    else:
+        stage = 1                     # 启动后未走出/缩量横盘
+
+    # ---- 买点状态 ----
+    if stage == 6:
+        buy = "EXIT_RISK"
+    elif stage == 5:
+        buy = "OVERHEATED"
+    elif stage == 4:
+        buy = "ACCELERATION"
+    elif restart_score >= 60 and days_since >= 3 and stage in (2, 3):
+        buy = "RESTART"
+    elif cum_d > 2 and v_ratio < 0.9 and last <= 0.5:
+        buy = "PULLBACK"            # 缩量回踩
+    elif days_since <= 2 and up3 > 3 and (new_high_score >= 70 or last >= 3):
+        buy = "BREAKOUT"
+    elif new_high_score >= 85 and v_ratio >= 1.1 and last > 0:
+        buy = "BREAKOUT"
+    elif stage == 3:
+        buy = "TREND"
+    else:
+        buy = "WAIT"
+
+    if stage <= 4:
+        path = [STAGE_LABELS[i] for i in range(1, stage + 1)]
+    else:
+        path = [STAGE_LABELS[1], STAGE_LABELS[2], STAGE_LABELS[3], STAGE_LABELS[stage]]
+    return stage, path, buy
+
+
+# 可关注买点（用于筛出最终 5~10 只）
+PICK_BUY_STATUS = ("BREAKOUT", "RESTART", "PULLBACK", "TREND")
+
+
 def _score_one(
     entry: dict,
     df,
@@ -251,6 +346,15 @@ def _score_one(
     if freshness >= 70:
         signals.append("信号新鲜")
 
+    # ---- 资金生命周期 + 买点状态（§22 / §23） ----
+    stage, lc_path, buy = _lifecycle_buy(
+        volumes, closes, highs, pcts, d_idx, b_avg, restart, new_high, resilience
+    )
+    if stage == 5:
+        signals.append("高位分歧")
+    elif stage == 6:
+        signals.append("资金撤退")
+
     return {
         "code": entry["code"],
         "name": entry.get("name") or entry["code"],
@@ -268,6 +372,11 @@ def _score_one(
         "smart_money_score": round(smart_money, 1),
         "rs_score": round(rs_score, 1),
         "freshness": round(freshness, 1),
+        "lifecycle_stage": stage,
+        "lifecycle_label": STAGE_LABELS[stage],
+        "lifecycle_path": lc_path,
+        "buy_status": buy,
+        "buy_status_label": BUY_LABELS[buy],
         "breakout_date": d_date or None,
         "breakout_days": max(0, days_since),
         "ret5_pct": round(ret5, 2),

@@ -208,6 +208,28 @@ export default function TrendAnalysisView({ selectedDate, onDateChange }: {
     }
   };
 
+  /** 复制股票名称 + 代码（一键复制核心股/交易标的） */
+  const copyStocks = async (list: TrendStockScore[], label: string) => {
+    const text = list.map((s) => `${s.name} ${s.code}`).join('\n');
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      message.success(`已复制 ${list.length} 只${label}（名称 + 代码）`);
+    } catch {
+      message.error('复制失败，请手动选择');
+    }
+  };
+
   const dateOptions = [
     { value: '', label: '最新' },
     ...(dates ?? []).map((d) => ({ value: d, label: d })),
@@ -236,6 +258,7 @@ export default function TrendAnalysisView({ selectedDate, onDateChange }: {
             趋势候选池 {data?.candidateCount ?? 0} 只 → 重点板块 {sectors.length} 个
             {stocks.length > 0 && <span> · 重点股 {data?.shortlistCount ?? stocks.length} 只</span>}
             {(data?.coreCount ?? 0) > 0 && <span> → 核心股 {data?.coreCount} 只</span>}
+            {(data?.finalCount ?? 0) > 0 && <span> → 交易标的 {data?.finalCount} 只</span>}
             {data?.date && <span> · {data.date}</span>}
             {!isLatest && <span> · 历史：{selectedDate}</span>}
             {data?.source === 'mock' && <span style={{ color: COLORS.chartGold }}> · 数据源异常，展示示例</span>}
@@ -301,17 +324,49 @@ export default function TrendAnalysisView({ selectedDate, onDateChange }: {
           ))}
 
           {stocks.length > 0 && (() => {
+            const picks = stocks.filter((s) => s.isPick);
             const core = stocks.filter((s) => s.isCore);
             const rest = stocks.filter((s) => !s.isCore);
             return (
               <>
+                {picks.length > 0 && (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 0 8px' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.chartRed }}>
+                        ⚡ 交易信号 TOP {picks.length}（买点可关注）
+                      </span>
+                      <span style={{ color: COLORS.textMuted, fontWeight: 400, fontSize: 12 }}>
+                        核心 {core.length} 只 → 买点筛选 {picks.length} 只
+                      </span>
+                      <Button
+                        size="small"
+                        style={{ marginInlineStart: 'auto' }}
+                        onClick={() => copyStocks(picks, '交易标的')}
+                      >
+                        复制全部
+                      </Button>
+                    </div>
+                    {picks.map((st, i) => (
+                      <CandidateRankCard key={st.code} stock={st} rank={i + 1} onClick={() => setActiveStock(st)} />
+                    ))}
+                  </>
+                )}
                 {core.length > 0 && (
                   <>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.textSecondary, margin: '18px 0 8px' }}>
-                      🎯 核心股 TOP {core.length}
-                      <span style={{ color: COLORS.textMuted, fontWeight: 400, fontSize: 12 }}>
-                        {' '}· 候选池 {data?.candidateCount ?? 0} → 重点股 {data?.shortlistCount ?? stocks.length} → 核心 {core.length}（点击查看评分）
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 0 8px' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.textSecondary }}>
+                        🎯 核心股 TOP {core.length}
                       </span>
+                      <span style={{ color: COLORS.textMuted, fontWeight: 400, fontSize: 12 }}>
+                        · 候选池 {data?.candidateCount ?? 0} → 重点股 {data?.shortlistCount ?? stocks.length} → 核心 {core.length}（点击查看评分）
+                      </span>
+                      <Button
+                        size="small"
+                        style={{ marginInlineStart: 'auto' }}
+                        onClick={() => copyStocks(core, '核心股')}
+                      >
+                        复制全部
+                      </Button>
                     </div>
                     {core.map((st, i) => (
                       <CandidateRankCard key={st.code} stock={st} rank={i + 1} onClick={() => setActiveStock(st)} />
@@ -351,7 +406,10 @@ export default function TrendAnalysisView({ selectedDate, onDateChange }: {
         腾讯板块级指标（东财接口在生产环境不可用，故不接入）。
         「重点股」在候选池上叠加 Smart Money（放量启动质量 / 量能保持 / 相对强度 / 板块共振 / 资金
         代理 / 缩量回调 / 二次放量 / 新高 / 新鲜度）、相对强度 RS（对标沪深300・中证1000・行业・概念）
-        与信号新鲜度，压缩到 50 只。本页仅提供策略信号与条件触发指标，不构成买入/卖出建议。
+        与信号新鲜度，压缩到 50 只；再叠加核心股评分 CoreScore 与板块梯队压到 20 只；最后按资金生命周期
+        （试探 / 启动 / 确认 / 加速 / 分歧 / 撤退）与买点状态（突破确认 / 缩量回踩 / 二次启动 / 趋势运行 /
+        加速 / 过热 / 等待 / 退出风险）筛出 5～10 只「交易信号」。本页仅提供策略信号与条件触发指标，
+        不构成买入/卖出建议。
       </div>
 
       <Drawer
