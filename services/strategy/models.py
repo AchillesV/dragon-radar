@@ -84,6 +84,24 @@ class SectorMember(BaseModel):
     is_lead: bool = False            # 是否为本板块候选池领涨股
 
 
+class LadderStock(BaseModel):
+    """板块梯队里的单只个股"""
+    code: str
+    name: str
+    score: float = 0.0           # 综合评分
+    core_score: float = 0.0      # 核心股评分
+    change_pct: float = 0.0
+    role: str = ""               # 龙头 / 核心中军 / 趋势跟随 / 补涨
+
+
+class SectorLadder(BaseModel):
+    """板块梯队（龙头 / 中军 / 趋势 / 补涨）"""
+    leader: List[LadderStock] = []
+    core: List[LadderStock] = []
+    trend: List[LadderStock] = []
+    laggard: List[LadderStock] = []
+
+
 class SectorAnalysis(BaseModel):
     """「趋势 → 分析」单个板块的热度、资金与扩散度"""
     code: str                        # 腾讯板块代码
@@ -154,24 +172,6 @@ class TrendStockScore(BaseModel):
     ret5_pct: Optional[float] = None           # 近 5 日涨幅 %
     components: TrendScoreComponents = TrendScoreComponents()
     signals: List[str] = []
-
-
-class LadderStock(BaseModel):
-    """板块梯队里的单只个股"""
-    code: str
-    name: str
-    score: float = 0.0           # 综合评分
-    core_score: float = 0.0      # 核心股评分
-    change_pct: float = 0.0
-    role: str = ""               # 龙头 / 核心中军 / 趋势跟随 / 补涨
-
-
-class SectorLadder(BaseModel):
-    """板块梯队（龙头 / 中军 / 趋势 / 补涨）"""
-    leader: List[LadderStock] = []
-    core: List[LadderStock] = []
-    trend: List[LadderStock] = []
-    laggard: List[LadderStock] = []
 
 
 class TrendAnalysis(BaseModel):
