@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchTrendStocks, fetchTrendDates, syncTrendStocks } from '../api/client';
+import { fetchTrendStocks, fetchTrendDates, syncTrendStocks, fetchTrendAnalysis } from '../api/client';
 
 export function useTrendStocks(date?: string) {
   return useQuery({
@@ -17,6 +17,15 @@ export function useTrendDates() {
   });
 }
 
+// 「趋势 → 分析」板块聚合
+export function useTrendAnalysis(date?: string) {
+  return useQuery({
+    queryKey: ['trend', 'analysis', date ?? 'latest'],
+    queryFn: () => fetchTrendAnalysis(date),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useSyncTrendStocks() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -24,6 +33,8 @@ export function useSyncTrendStocks() {
     onSuccess: (stocks) => {
       queryClient.setQueryData(['trend', 'stocks', 'latest'], stocks);
       queryClient.invalidateQueries({ queryKey: ['trend', 'dates'] });
+      // 候选池刷新后，板块分析需重算
+      queryClient.invalidateQueries({ queryKey: ['trend', 'analysis'] });
     },
   });
 }

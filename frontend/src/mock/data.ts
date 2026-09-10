@@ -9,6 +9,7 @@ import type {
   AnomalyType,
   TrendStock,
   MainlineStock,
+  TrendAnalysis,
 } from '../types';
 
 export const mockStocks: StockRow[] = [
@@ -1334,3 +1335,49 @@ export const mockMainlineStocks: MainlineStock[] = [
   { code: '002463', name: '沪电股份', price: 152.80, changePct: -0.5, amount: 9.8e8, periodGainPct: 92.7, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
   { code: '002185', name: '华天科技', price: 22.31, changePct: 6.1, amount: 3.8e8, periodGainPct: 87.0, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
 ];
+
+// 「趋势 → 分析」mock（VITE_USE_MOCK 或后端整体不可用时的兜底）
+export const mockTrendAnalysis: TrendAnalysis = {
+  date: '2026-09-10',
+  generatedAt: '2026-09-10T15:20:00',
+  candidateCount: 281,
+  source: 'mock',
+  sectors: [
+    {
+      code: 'gn_jqr', name: '机器人', type: 'concept', score: 92.4, changePct: 3.86,
+      change5Pct: 8.7, change20Pct: 12.3, lb: 1.62, netInflowPct: 4.2, netInflow5Pct: 6.1,
+      breadthScore: 83.0, upRatio: 76.0, totalCount: 100, upCount: 76, downCount: 24,
+      strong3Count: 31, strong5Count: 18, limitUpCount: 6,
+      leadStock: '绿的谐波', candidateCount: 4,
+      candidates: [
+        { code: '688017', name: '绿的谐波', changePct: 9.9, isCandidate: true, isLead: true },
+        { code: '002472', name: '双环传动', changePct: 6.2, isCandidate: true, isLead: false },
+        { code: '603667', name: '五洲新春', changePct: 4.1, isCandidate: true, isLead: false },
+      ],
+      signals: ['板块5日走强', '量能持续放大', '上涨家数占优', '扩散度良好', '6只涨停'],
+    },
+    {
+      code: 'new_dzxx', name: '电子信息', type: 'industry', score: 88.7, changePct: 2.14,
+      change5Pct: 6.4, change20Pct: 9.1, lb: 1.35, netInflowPct: 3.1, netInflow5Pct: 4.4,
+      breadthScore: 74.2, upRatio: 68.0, totalCount: 100, upCount: 68, downCount: 32,
+      strong3Count: 22, strong5Count: 12, limitUpCount: 4,
+      leadStock: '北方华创', candidateCount: 3,
+      candidates: [
+        { code: '002371', name: '北方华创', changePct: 7.8, isCandidate: true, isLead: true },
+        { code: '600584', name: '长电科技', changePct: 3.2, isCandidate: true, isLead: false },
+      ],
+      signals: ['板块5日走强', '量能持续放大', '扩散度良好'],
+    },
+    {
+      code: 'new_dlhy', name: '电力行业', type: 'industry', score: 82.5, changePct: 1.38,
+      change5Pct: 4.9, change20Pct: 7.2, lb: 1.21, netInflowPct: 2.4, netInflow5Pct: 3.3,
+      breadthScore: 69.5, upRatio: 63.0, totalCount: 100, upCount: 63, downCount: 37,
+      strong3Count: 17, strong5Count: 9, limitUpCount: 3,
+      leadStock: '长江电力', candidateCount: 2,
+      candidates: [
+        { code: '600900', name: '长江电力', changePct: 5.4, isCandidate: true, isLead: true },
+      ],
+      signals: ['板块5日走强', '扩散度良好'],
+    },
+  ],
+};

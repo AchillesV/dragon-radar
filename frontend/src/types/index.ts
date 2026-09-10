@@ -136,6 +136,48 @@ export interface MainlineStock {
   periodEnd?: string;
 }
 
+// 「趋势 → 分析」板块聚合结果
+export interface SectorMember {
+  code: string;
+  name: string;
+  changePct: number;
+  isCandidate: boolean;   // 是否来自趋势候选池
+  isLead: boolean;        // 是否为本板块候选池领涨股
+}
+
+export interface SectorAnalysis {
+  code: string;
+  name: string;
+  type: 'industry' | 'concept';
+  score: number;               // 板块热度 0~100
+  changePct: number;           // 今日板块涨跌幅
+  change5Pct?: number;         // 5 日涨跌幅
+  change20Pct?: number;        // 20 日涨跌幅
+  lb?: number;                 // 量比
+  netInflowPct?: number;       // 今日主力净额 / 成交额（%）
+  netInflow5Pct?: number;      // 5 日主力净额 / 成交额（%）
+  breadthScore?: number;       // 扩散度 0~100
+  upRatio?: number;            // 上涨家数占比 %
+  totalCount: number;          // 参与扩散度计算的股票数（并集）
+  upCount: number;
+  downCount: number;
+  strong3Count: number;        // 涨幅 >= 3% 的成分股数
+  strong5Count: number;        // 涨幅 >= 5% 的成分股数
+  limitUpCount: number;        // 涨停成分股数
+  leadStock?: string;
+  candidateCount: number;      // 板块内趋势候选股数量
+  candidates: SectorMember[];
+  signals: string[];           // 策略信号（非买卖结论）
+}
+
+export interface TrendAnalysis {
+  date: string;
+  generatedAt: string;
+  candidateCount: number;
+  source: string;              // tencent | mock
+  sectors: SectorAnalysis[];
+}
+
 export interface BulkAnalysisResult {
   date: string;
   totalCandidates: number;

@@ -73,3 +73,47 @@ class TrendStock(BaseModel):
     range_change_pct: float         # 该窗口累计涨跌幅
     description: Optional[str] = None
     hit_count: int = 1               # 过去统计周期内的入选次数（不要求连续），>=3 视为持续入选
+
+
+class SectorMember(BaseModel):
+    """板块内个股（候选池个股 or 板块成分股）"""
+    code: str
+    name: str
+    change_pct: float = 0.0
+    is_candidate: bool = False       # 是否来自趋势候选池
+    is_lead: bool = False            # 是否为本板块候选池领涨股
+
+
+class SectorAnalysis(BaseModel):
+    """「趋势 → 分析」单个板块的热度、资金与扩散度"""
+    code: str                        # 腾讯板块代码
+    name: str
+    type: str                        # industry | concept
+    score: float                     # 板块热度 0~100
+    change_pct: float = 0.0          # 今日板块涨跌幅
+    change5_pct: Optional[float] = None     # 5 日涨跌幅
+    change20_pct: Optional[float] = None    # 20 日涨跌幅
+    lb: Optional[float] = None              # 量比
+    net_inflow_pct: Optional[float] = None  # 今日主力净额 / 成交额（%）
+    net_inflow5_pct: Optional[float] = None # 5 日主力净额 / 成交额（%）
+    breadth_score: Optional[float] = None   # 扩散度 0~100
+    up_ratio: Optional[float] = None        # 上涨家数占比 %
+    total_count: int = 0                    # 参与扩散度计算的股票数（并集）
+    up_count: int = 0
+    down_count: int = 0
+    strong3_count: int = 0           # 涨幅 >= 3% 的成分股数
+    strong5_count: int = 0           # 涨幅 >= 5% 的成分股数
+    limit_up_count: int = 0          # 涨停成分股数（>=9.8%）
+    lead_stock: Optional[str] = None
+    candidate_count: int = 0         # 板块内趋势候选股数量
+    candidates: List[SectorMember] = []
+    signals: List[str] = []          # 策略信号（非买卖结论）
+
+
+class TrendAnalysis(BaseModel):
+    """「趋势 → 分析」页面数据"""
+    date: str
+    generated_at: str
+    candidate_count: int             # 参与聚合的趋势候选股数量
+    source: str = "tencent"         # 数据来源：tencent | mock
+    sectors: List[SectorAnalysis] = []
