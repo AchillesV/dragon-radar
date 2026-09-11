@@ -191,3 +191,58 @@ class TrendAnalysis(BaseModel):
     source: str = "tencent"         # 数据来源：tencent | mock
     sectors: List[SectorAnalysis] = []
     stocks: List[TrendStockScore] = []
+
+
+# ---------------------------------------------------------------------------
+# Phase 5：策略回测（T+1/T+3/T+5/T+10）
+# ---------------------------------------------------------------------------
+class BacktestStats(BaseModel):
+    """单个持有周期的回测统计"""
+    horizon: int
+    samples: int = 0
+    win_rate: Optional[float] = None       # 胜率 %
+    avg_ret: Optional[float] = None        # 平均收益 %
+    median_ret: Optional[float] = None     # 收益中位数 %
+    avg_win: Optional[float] = None        # 平均盈利 %
+    avg_loss: Optional[float] = None       # 平均亏损 %
+    payoff_ratio: Optional[float] = None   # 盈亏比
+    profit_factor: Optional[float] = None  # 盈亏总额比
+    expectancy: Optional[float] = None     # 期望收益 %
+    max_drawdown: Optional[float] = None   # 区间平均最大浮亏 %
+    best: Optional[float] = None
+    worst: Optional[float] = None
+
+
+class BacktestGroup(BaseModel):
+    """按买点状态 / 生命周期分组的 T+5 统计"""
+    key: str
+    label: str = ""
+    samples: int = 0
+    win_rate: Optional[float] = None
+    avg_ret5: Optional[float] = None
+
+
+class BacktestDateRow(BaseModel):
+    """单个信号日的回测行"""
+    date: str
+    candidates: int = 0
+    signals: int = 0
+    avg_ret5: Optional[float] = None
+    win_rate5: Optional[float] = None
+
+
+class TrendBacktest(BaseModel):
+    """「趋势 → 分析」策略回测结果"""
+    generated_at: str
+    date_from: str = ""
+    date_to: str = ""
+    sessions: int = 0
+    universe_size: int = 0
+    signal_total: int = 0
+    horizons: List[int] = []
+    stats: List[BacktestStats] = []
+    by_buy_status: List[BacktestGroup] = []
+    by_lifecycle: List[BacktestGroup] = []
+    dates: List[BacktestDateRow] = []
+    source: str = "tencent"
+    note: str = ""

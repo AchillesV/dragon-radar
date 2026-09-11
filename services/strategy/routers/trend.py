@@ -27,7 +27,8 @@ from fastapi import APIRouter
 
 import trend_store
 import sector_analysis
-from models import TrendStock, TrendAnalysis
+import backtest
+from models import TrendStock, TrendAnalysis, TrendBacktest
 from routers.screening import _fetch_hist_tencent
 
 logger = logging.getLogger(__name__)
@@ -323,6 +324,24 @@ def _load_candidates(session_date: str, allow_compute: bool) -> List[TrendStock]
     except Exception as e:
         logger.warning(f"趋势候选池计算失败: {e}")
     return stocks
+
+
+@router.get("/backtest", response_model=TrendBacktest)
+async def get_trend_backtest(sessions: int = 26):
+    """
+    「趋势 → 分析」策略回测：用本地每日候选快照 + 腾讯日线，对价量信号（放量启动 / 量能保持 /
+    RS / 生命周期 / 买点状态）做 T+1/T+3/T+5/T+10 前向收益回测。
+
+    只读本地已落库的快照，不触发全市场扫描；数据源异常时返回降级结构。
+    """
+    try:
+        return backtest.run_backtest(sessions=max(1, min(120, sessions)))
+    except Exception as e:
+        logger.warning(f"策略回测失败，退化到降级结构: {e}")
+        return {
+            **backtest._MOCK_BACKTEST,
+            "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        }
 
 
 @router.get("/analysis", response_model=TrendAnalysis)

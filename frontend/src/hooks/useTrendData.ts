@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchTrendStocks, fetchTrendDates, syncTrendStocks, fetchTrendAnalysis } from '../api/client';
+import { fetchTrendStocks, fetchTrendDates, syncTrendStocks, fetchTrendAnalysis, fetchTrendBacktest } from '../api/client';
 
 export function useTrendStocks(date?: string) {
   return useQuery({
@@ -23,6 +23,15 @@ export function useTrendAnalysis(date?: string) {
     queryKey: ['trend', 'analysis', date ?? 'latest'],
     queryFn: () => fetchTrendAnalysis(date),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+// 「趋势 → 分析 → 回测」（Phase 5）
+export function useTrendBacktest(sessions?: number) {
+  return useQuery({
+    queryKey: ['trend', 'backtest', sessions ?? 'default'],
+    queryFn: () => fetchTrendBacktest(sessions),
+    staleTime: 30 * 60 * 1000,
   });
 }
 

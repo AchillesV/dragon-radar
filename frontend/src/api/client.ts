@@ -16,6 +16,10 @@ import type {
   TrendAnalysis,
   TrendScoreComponents,
   LadderStock,
+  TrendBacktest,
+  BacktestStats,
+  BacktestGroup,
+  BacktestDateRow,
 } from '../types';
 import {
   mockStocks,
@@ -31,6 +35,7 @@ import {
   mockTrendStocks,
   mockMainlineStocks,
   mockTrendAnalysis,
+  mockTrendBacktest,
 } from '../mock/data';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
@@ -469,6 +474,76 @@ export async function fetchTrendAnalysis(date?: string): Promise<TrendAnalysis> 
     params: date ? { date } : undefined,
   });
   return toTrendAnalysis(res.data);
+}
+
+// 「趋势 → 分析 → 回测」（Phase 5）
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toBacktestStats(raw: any): BacktestStats {
+  return {
+    horizon: raw.horizon ?? 0,
+    samples: raw.samples ?? 0,
+    winRate: raw.win_rate ?? raw.winRate ?? undefined,
+    avgRet: raw.avg_ret ?? raw.avgRet ?? undefined,
+    medianRet: raw.median_ret ?? raw.medianRet ?? undefined,
+    avgWin: raw.avg_win ?? raw.avgWin ?? undefined,
+    avgLoss: raw.avg_loss ?? raw.avgLoss ?? undefined,
+    payoffRatio: raw.payoff_ratio ?? raw.payoffRatio ?? undefined,
+    profitFactor: raw.profit_factor ?? raw.profitFactor ?? undefined,
+    expectancy: raw.expectancy ?? undefined,
+    maxDrawdown: raw.max_drawdown ?? raw.maxDrawdown ?? undefined,
+    best: raw.best ?? undefined,
+    worst: raw.worst ?? undefined,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toBacktestGroup(raw: any): BacktestGroup {
+  return {
+    key: raw.key ?? '',
+    label: raw.label ?? raw.key ?? '',
+    samples: raw.samples ?? 0,
+    winRate: raw.win_rate ?? raw.winRate ?? undefined,
+    avgRet5: raw.avg_ret5 ?? raw.avgRet5 ?? undefined,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toTrendBacktest(raw: any): TrendBacktest {
+  return {
+    generatedAt: raw.generated_at ?? raw.generatedAt ?? '',
+    dateFrom: raw.date_from ?? raw.dateFrom ?? '',
+    dateTo: raw.date_to ?? raw.dateTo ?? '',
+    sessions: raw.sessions ?? 0,
+    universeSize: raw.universe_size ?? raw.universeSize ?? 0,
+    signalTotal: raw.signal_total ?? raw.signalTotal ?? 0,
+    horizons: raw.horizons ?? [],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stats: (raw.stats ?? []).map((s: any) => toBacktestStats(s)),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    byBuyStatus: (raw.by_buy_status ?? raw.byBuyStatus ?? []).map((g: any) => toBacktestGroup(g)),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    byLifecycle: (raw.by_lifecycle ?? raw.byLifecycle ?? []).map((g: any) => toBacktestGroup(g)),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dates: (raw.dates ?? []).map((d: any): BacktestDateRow => ({
+      date: d.date ?? '',
+      candidates: d.candidates ?? 0,
+      signals: d.signals ?? 0,
+      avgRet5: d.avg_ret5 ?? d.avgRet5 ?? undefined,
+      winRate5: d.win_rate5 ?? d.winRate5 ?? undefined,
+    })),
+    source: raw.source ?? 'tencent',
+    note: raw.note ?? '',
+  };
+}
+
+export async function fetchTrendBacktest(sessions?: number): Promise<TrendBacktest> {
+  if (USE_MOCK) { await delay(500); return mockTrendBacktest; }
+  // 首次访问需拉取数百只日线，冷启动可能数分钟（本地回测快照越多越久）
+  const res = await http.get('/screening/trend/backtest', {
+    timeout: 600000,
+    params: sessions ? { sessions } : undefined,
+  });
+  return toTrendBacktest(res.data);
 }
 
 // 「主线」核心票

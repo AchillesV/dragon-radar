@@ -172,6 +172,55 @@ export interface SectorAnalysis {
   signals: string[];           // 策略信号（非买卖结论）
 }
 
+// 「趋势 → 分析」策略回测（Phase 5）
+export interface BacktestStats {
+  horizon: number;
+  samples: number;
+  winRate?: number;        // 胜率 %
+  avgRet?: number;         // 平均收益 %
+  medianRet?: number;
+  avgWin?: number;
+  avgLoss?: number;
+  payoffRatio?: number;    // 盈亏比
+  profitFactor?: number;
+  expectancy?: number;     // 期望收益 %
+  maxDrawdown?: number;    // 区间平均最大浮亏 %
+  best?: number;
+  worst?: number;
+}
+
+export interface BacktestGroup {
+  key: string;
+  label: string;
+  samples: number;
+  winRate?: number;
+  avgRet5?: number;
+}
+
+export interface BacktestDateRow {
+  date: string;
+  candidates: number;
+  signals: number;
+  avgRet5?: number;
+  winRate5?: number;
+}
+
+export interface TrendBacktest {
+  generatedAt: string;
+  dateFrom: string;
+  dateTo: string;
+  sessions: number;
+  universeSize: number;
+  signalTotal: number;
+  horizons: number[];
+  stats: BacktestStats[];
+  byBuyStatus: BacktestGroup[];
+  byLifecycle: BacktestGroup[];
+  dates: BacktestDateRow[];
+  source: string;
+  note: string;
+}
+
 export interface TrendAnalysis {
   date: string;
   generatedAt: string;

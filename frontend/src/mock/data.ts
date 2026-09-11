@@ -10,6 +10,7 @@ import type {
   TrendStock,
   MainlineStock,
   TrendAnalysis,
+  TrendBacktest,
 } from '../types';
 
 export const mockStocks: StockRow[] = [
@@ -1337,6 +1338,40 @@ export const mockMainlineStocks: MainlineStock[] = [
 ];
 
 // 「趋势 → 分析」mock（VITE_USE_MOCK 或后端整体不可用时的兜底）
+export const mockTrendBacktest: TrendBacktest = {
+  generatedAt: '2026-09-11T10:00:00',
+  dateFrom: '2026-08-05',
+  dateTo: '2026-09-10',
+  sessions: 12,
+  universeSize: 520,
+  signalTotal: 118,
+  horizons: [1, 3, 5, 10],
+  stats: [
+    { horizon: 1, samples: 118, winRate: 58.5, avgRet: 1.12, medianRet: 0.62, avgWin: 4.1, avgLoss: -3.05, payoffRatio: 1.34, profitFactor: 1.9, expectancy: 0.36, maxDrawdown: -2.4, best: 12.6, worst: -8.1 },
+    { horizon: 3, samples: 116, winRate: 55.2, avgRet: 2.35, medianRet: 1.1, avgWin: 7.2, avgLoss: -4.6, payoffRatio: 1.57, profitFactor: 1.93, expectancy: 0.85, maxDrawdown: -3.6, best: 20.4, worst: -11.2 },
+    { horizon: 5, samples: 110, winRate: 52.7, avgRet: 3.1, medianRet: 1.4, avgWin: 9.8, avgLoss: -5.9, payoffRatio: 1.66, profitFactor: 1.86, expectancy: 1.08, maxDrawdown: -4.8, best: 28.3, worst: -14.5 },
+    { horizon: 10, samples: 92, winRate: 47.8, avgRet: 2.4, medianRet: 0.3, avgWin: 14.2, avgLoss: -8.3, payoffRatio: 1.71, profitFactor: 1.56, expectancy: 0.42, maxDrawdown: -7.9, best: 41.0, worst: -22.6 },
+  ],
+  byBuyStatus: [
+    { key: 'BREAKOUT', label: '突破确认', samples: 62, winRate: 54.8, avgRet5: 3.6 },
+    { key: 'RESTART', label: '二次启动', samples: 26, winRate: 53.8, avgRet5: 3.1 },
+    { key: 'PULLBACK', label: '缩量回踩', samples: 14, winRate: 50.0, avgRet5: 2.2 },
+    { key: 'TREND', label: '趋势运行', samples: 8, winRate: 37.5, avgRet5: -0.6 },
+  ],
+  byLifecycle: [
+    { key: '放量启动', label: '放量启动', samples: 58, winRate: 55.2, avgRet5: 3.5 },
+    { key: '趋势确认', label: '趋势确认', samples: 34, winRate: 52.9, avgRet5: 2.9 },
+    { key: '趋势加速', label: '趋势加速', samples: 12, winRate: 41.7, avgRet5: 1.1 },
+  ],
+  dates: [
+    { date: '2026-08-28', candidates: 208, signals: 10, avgRet5: 4.2, winRate5: 60.0 },
+    { date: '2026-09-01', candidates: 242, signals: 10, avgRet5: 2.1, winRate5: 50.0 },
+    { date: '2026-09-03', candidates: 240, signals: 10, avgRet5: 3.8, winRate5: 55.0 },
+  ],
+  source: 'mock',
+  note: '示例数据（回测数据源异常）',
+};
+
 export const mockTrendAnalysis: TrendAnalysis = {
   date: '2026-09-10',
   generatedAt: '2026-09-10T15:20:00',
