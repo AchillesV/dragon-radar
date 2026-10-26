@@ -93,6 +93,8 @@ def load_snapshot(date: str) -> List[TrendStock]:
             range_change_pct=r[10] or 0.0, description=r[11],
         )
         for r in rows
+        # 趋势模块剔除科创板（688）：过滤历史上已落库、未按新口径重扫的旧快照
+        if not str(r[0]).startswith("688")
     ]
 
 

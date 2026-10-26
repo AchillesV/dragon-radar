@@ -45,12 +45,12 @@ RANGE_WINDOWS = (3, 5, 10)
 CHANGE_PCT_MIN, CHANGE_PCT_MAX = -10.0, 10.0
 
 # ---------------------------------------------------------------------------
-# ST / 创业板 剔除（与 anomaly.py / screening.py 保持一致的过滤规则）
+# ST / 创业板 / 科创板 剔除（趋势模块口径）
 # ---------------------------------------------------------------------------
 
 
 def _is_qualified(code: str, name: str) -> bool:
-    if code.startswith("300") or code.startswith("301"):
+    if code.startswith(("300", "301", "688")):
         return False
     if "ST" in name.upper():
         return False
@@ -66,7 +66,7 @@ _UNIVERSE_TTL = 24 * 3600
 
 
 def _get_universe() -> List[Tuple[str, str]]:
-    """返回 [(code, name), ...]，已剔除创业板/ST"""
+    """返回 [(code, name), ...]，已剔除创业板/科创板/ST"""
     global _UNIVERSE_CACHE
     now = time.time()
     if _UNIVERSE_CACHE and now - _UNIVERSE_CACHE[0] < _UNIVERSE_TTL:
@@ -91,7 +91,7 @@ def _get_universe() -> List[Tuple[str, str]]:
         if _is_qualified(str(row["code"]), str(row["name"]))
     ]
     _UNIVERSE_CACHE = (now, universe)
-    logger.info(f"全市场股票池刷新: {len(universe)} 只（已剔除创业板/ST）")
+    logger.info(f"全市场股票池刷新: {len(universe)} 只（已剔除创业板/科创板/ST）")
     return universe
 
 
