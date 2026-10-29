@@ -58,6 +58,51 @@ class MainlineStock(BaseModel):
     period_end: Optional[str] = None
 
 
+class CoreSector(BaseModel):
+    """热门板块（核心模块）—— 涨停扩散 + 放量 + 资金净流入 + 高度"""
+    name: str                              # 涨停池「所属行业」原始名
+    matched_name: Optional[str] = None     # 对齐后的同花顺行业名（缺失代表板块数据不可得）
+    limit_up_count: int = 0                # 今日涨停家数
+    max_board: int = 0                     # 板块最高连板
+    multi_board_count: int = 0             # 连板 >= 2 的家数
+    one_board_count: int = 0               # 首板家数
+    main_net_today: Optional[float] = None  # 今日资金净额（亿）
+    main_net_5d: Optional[float] = None     # 5 日资金净额（亿）
+    main_net_10d: Optional[float] = None    # 10 日资金净额（亿）
+    amount_today: Optional[float] = None    # 今日板块成交额（亿）
+    volume_ratio: Optional[float] = None    # 近3日均额 / 前20日均额
+    rise_ratio: Optional[float] = None      # 上涨家数占比
+    score: float = 0.0
+    reasons: List[str] = []
+
+
+class CoreStock(BaseModel):
+    """核心候选 —— 热门板块内的首板票"""
+    code: str
+    name: str
+    sector: str
+    price: Optional[float] = None
+    change_pct: float = 0.0
+    amount: Optional[float] = None          # 今日成交额（元）
+    seal_amount: Optional[float] = None     # 封板资金（元）
+    turnover_rate: Optional[float] = None   # 换手率（%）
+    first_limit_time: Optional[str] = None  # 首次封板时间 HH:MM:SS
+    break_count: int = 0                    # 炸板次数
+    limit_stat: Optional[str] = None        # 涨停统计，如 1/1
+    sector_score: float = 0.0
+
+
+class CoreResult(BaseModel):
+    """核心页面整体结果"""
+    date: str
+    generated_at: str
+    market_max_board: int = 0
+    data_quality: str = "full"              # full | partial（板块资金/放量数据缺失）
+    sectors: List[CoreSector] = []
+    watchlist: List[CoreSector] = []        # 扩散+高度达标，但资金/放量未达标的板块
+    stocks: List[CoreStock] = []
+
+
 class TrendStock(BaseModel):
     """「趋势」命中股票 —— 放量启动 + 持续放量 + 横盘"""
     code: str

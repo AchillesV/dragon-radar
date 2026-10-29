@@ -12,7 +12,7 @@ import type {
   StockDescription,
   OperationGuide,
   TrendStock,
-  MainlineStock,
+  CoreResult,
   TrendAnalysis,
   TrendScoreComponents,
   LadderStock,
@@ -33,7 +33,7 @@ import {
   mockBulkAnalysis,
   mockAnomalyStocks,
   mockTrendStocks,
-  mockMainlineStocks,
+  mockCoreResult,
   mockTrendAnalysis,
   mockTrendBacktest,
 } from '../mock/data';
@@ -546,25 +546,58 @@ export async function fetchTrendBacktest(sessions?: number): Promise<TrendBackte
   return toTrendBacktest(res.data);
 }
 
-// 「主线」核心票
+// ---- 核心：热门板块 + 板块内首板 ----
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toMainlineStock(raw: any): MainlineStock {
+function toCoreSector(s: any): CoreResult['sectors'][number] {
   return {
-    code: raw.code,
-    name: raw.name,
-    price: raw.price ?? undefined,
-    changePct: raw.change_pct ?? raw.changePct ?? 0,
-    amount: raw.amount ?? undefined,
-    periodGainPct: raw.period_gain_pct ?? raw.periodGainPct ?? 0,
-    periodStart: raw.period_start ?? raw.periodStart ?? undefined,
-    periodEnd: raw.period_end ?? raw.periodEnd ?? undefined,
+    name: s.name,
+    matchedName: s.matched_name ?? s.matchedName ?? undefined,
+    limitUpCount: s.limit_up_count ?? s.limitUpCount ?? 0,
+    maxBoard: s.max_board ?? s.maxBoard ?? 0,
+    multiBoardCount: s.multi_board_count ?? s.multiBoardCount ?? 0,
+    oneBoardCount: s.one_board_count ?? s.oneBoardCount ?? 0,
+    mainNetToday: s.main_net_today ?? s.mainNetToday ?? undefined,
+    mainNet5d: s.main_net_5d ?? s.mainNet5d ?? undefined,
+    mainNet10d: s.main_net_10d ?? s.mainNet10d ?? undefined,
+    amountToday: s.amount_today ?? s.amountToday ?? undefined,
+    volumeRatio: s.volume_ratio ?? s.volumeRatio ?? undefined,
+    riseRatio: s.rise_ratio ?? s.riseRatio ?? undefined,
+    score: s.score ?? 0,
+    reasons: s.reasons ?? [],
   };
 }
 
-export async function fetchMainlineStocks(): Promise<MainlineStock[]> {
-  if (USE_MOCK) { await delay(400); return mockMainlineStocks; }
-  const res = await http.get('/screening/mainline/stocks');
-  return (res.data as unknown[]).map(toMainlineStock);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toCoreResult(raw: any): CoreResult {
+  return {
+    date: raw.date ?? '',
+    generatedAt: raw.generated_at ?? raw.generatedAt ?? '',
+    marketMaxBoard: raw.market_max_board ?? raw.marketMaxBoard ?? 0,
+    dataQuality: raw.data_quality ?? raw.dataQuality ?? 'full',
+    sectors: (raw.sectors ?? []).map(toCoreSector),
+    watchlist: (raw.watchlist ?? []).map(toCoreSector),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stocks: (raw.stocks ?? []).map((s: any) => ({
+      code: s.code,
+      name: s.name,
+      sector: s.sector,
+      price: s.price ?? undefined,
+      changePct: s.change_pct ?? s.changePct ?? 0,
+      amount: s.amount ?? undefined,
+      sealAmount: s.seal_amount ?? s.sealAmount ?? undefined,
+      turnoverRate: s.turnover_rate ?? s.turnoverRate ?? undefined,
+      firstLimitTime: s.first_limit_time ?? s.firstLimitTime ?? undefined,
+      breakCount: s.break_count ?? s.breakCount ?? 0,
+      limitStat: s.limit_stat ?? s.limitStat ?? undefined,
+      sectorScore: s.sector_score ?? s.sectorScore ?? 0,
+    })),
+  };
+}
+
+export async function fetchCoreResult(): Promise<CoreResult> {
+  if (USE_MOCK) { await delay(400); return mockCoreResult; }
+  const res = await http.get('/screening/core');
+  return toCoreResult(res.data);
 }
 
 // ---- 多条件过滤 ----

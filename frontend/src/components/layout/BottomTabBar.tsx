@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { FundProjectionScreenOutlined, ThunderboltOutlined, FilterOutlined, LineChartOutlined, ClusterOutlined } from '@ant-design/icons';
+import { FundProjectionScreenOutlined, ThunderboltOutlined, FilterOutlined, LineChartOutlined, AimOutlined } from '@ant-design/icons';
 import { COLORS } from '../../constants/colors';
 import type { ReactNode } from 'react';
 
@@ -8,7 +8,7 @@ const tabs: { path: string; label: string; icon: ReactNode; end: boolean }[] = [
   { path: '/anomaly', label: '异动', icon: <ThunderboltOutlined />, end: false },
   { path: '/screening', label: '筛选', icon: <FilterOutlined />, end: false },
   { path: '/trend', label: '趋势', icon: <LineChartOutlined />, end: false },
-  { path: '/mainline', label: '主线', icon: <ClusterOutlined />, end: false },
+  { path: '/core', label: '核心', icon: <AimOutlined />, end: false },
 ];
 
 export default function BottomTabBar() {

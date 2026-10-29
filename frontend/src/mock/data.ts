@@ -8,7 +8,7 @@ import type {
   BulkAnalysisResult,
   AnomalyType,
   TrendStock,
-  MainlineStock,
+  CoreResult,
   TrendAnalysis,
   TrendBacktest,
 } from '../types';
@@ -1326,16 +1326,57 @@ export const mockTrendStocks: TrendStock[] = [
   },
 ];
 
-export const mockMainlineStocks: MainlineStock[] = [
-  { code: '603773', name: '沃格光电', price: 162.97, changePct: 3.1, amount: 3.2e8, periodGainPct: 377.5, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '600206', name: '有研新材', price: 90.60, changePct: -1.2, amount: 4.1e8, periodGainPct: 222.7, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '603986', name: '兆易创新', price: 219.60, changePct: 1.8, amount: 12.6e8, periodGainPct: 219.6, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '002281', name: '光迅科技', price: 195.40, changePct: 4.6, amount: 8.7e8, periodGainPct: 195.4, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '600909', name: '华安证券', price: 11.11, changePct: 2.0, amount: 2.4e8, periodGainPct: 97.7, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '002371', name: '北方华创', price: 884.56, changePct: 1.5, amount: 21.3e8, periodGainPct: 96.3, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '002463', name: '沪电股份', price: 152.80, changePct: -0.5, amount: 9.8e8, periodGainPct: 92.7, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-  { code: '002185', name: '华天科技', price: 22.31, changePct: 6.1, amount: 3.8e8, periodGainPct: 87.0, periodStart: '2026-04-01', periodEnd: '2026-06-30' },
-];
+export const mockCoreResult: CoreResult = {
+  date: '2026-10-29',
+  generatedAt: '2026-10-29 15:05:00',
+  marketMaxBoard: 4,
+  dataQuality: 'full',
+  sectors: [
+    {
+      name: '汽车零部', matchedName: '汽车零部件',
+      limitUpCount: 4, maxBoard: 4, multiBoardCount: 2, oneBoardCount: 2,
+      mainNetToday: 6.8, mainNet5d: 18.2, mainNet10d: 9.4,
+      amountToday: 658.0, volumeRatio: 1.52, riseRatio: 0.66, score: 82.4,
+      reasons: ['涨停4家', '5日净额+18.2亿', '放量1.52x', '全市场最高板4板'],
+    },
+    {
+      name: '通用设备', matchedName: '通用设备',
+      limitUpCount: 4, maxBoard: 2, multiBoardCount: 2, oneBoardCount: 2,
+      mainNetToday: 3.2, mainNet5d: 9.7, mainNet10d: 4.1,
+      amountToday: 621.0, volumeRatio: 1.68, riseRatio: 0.72, score: 74.6,
+      reasons: ['涨停4家', '5日净额+9.7亿', '放量1.68x', '2家连板'],
+    },
+  ],
+  watchlist: [
+    {
+      name: '半导体', matchedName: '半导体',
+      limitUpCount: 3, maxBoard: 2, multiBoardCount: 2, oneBoardCount: 1,
+      mainNetToday: -3.5, mainNet5d: -8.2, mainNet10d: -5.1,
+      amountToday: 712.0, volumeRatio: 1.1, riseRatio: 0.45, score: 46.3,
+      reasons: ['5日净额-8.2亿', '放量1.1x'],
+    },
+  ],
+  stocks: [
+    {
+      code: '000530', name: '冰山冷热', sector: '通用设备',
+      price: 6.85, changePct: 10.02, amount: 1.92e8, sealAmount: 8.6e7,
+      turnoverRate: 6.4, firstLimitTime: '09:32:00', breakCount: 0,
+      limitStat: '1/1', sectorScore: 74.6,
+    },
+    {
+      code: '600592', name: '龙溪股份', sector: '通用设备',
+      price: 14.62, changePct: 10.01, amount: 3.15e8, sealAmount: 1.24e8,
+      turnoverRate: 8.9, firstLimitTime: '10:05:00', breakCount: 1,
+      limitStat: '1/1', sectorScore: 74.6,
+    },
+    {
+      code: '002708', name: '光洋股份', sector: '汽车零部',
+      price: 20.83, changePct: 9.98, amount: 28.9e8, sealAmount: 0.85e8,
+      turnoverRate: 27.9, firstLimitTime: '09:25:00', breakCount: 17,
+      limitStat: '1/1', sectorScore: 82.4,
+    },
+  ],
+};
 
 // 「趋势 → 分析」mock（VITE_USE_MOCK 或后端整体不可用时的兜底）
 export const mockTrendBacktest: TrendBacktest = {

@@ -125,15 +125,48 @@ export interface TrendStock {
   hitCount: number;             // 过去统计周期内的入选次数（不要求连续），>=3 视为持续入选
 }
 
-export interface MainlineStock {
+// 「核心」热门板块
+export interface CoreSector {
+  name: string;
+  matchedName?: string;
+  limitUpCount: number;
+  maxBoard: number;
+  multiBoardCount: number;
+  oneBoardCount: number;
+  mainNetToday?: number;   // 亿
+  mainNet5d?: number;      // 亿
+  mainNet10d?: number;     // 亿
+  amountToday?: number;    // 亿
+  volumeRatio?: number;    // 近3日均额 / 前20日均额
+  riseRatio?: number;      // 上涨家数占比
+  score: number;
+  reasons: string[];
+}
+
+// 「核心」板块内首板
+export interface CoreStock {
   code: string;
   name: string;
+  sector: string;
   price?: number;
   changePct: number;
-  amount?: number;        // 元
-  periodGainPct: number;  // 4/1~6/30 累计涨幅
-  periodStart?: string;
-  periodEnd?: string;
+  amount?: number;          // 元
+  sealAmount?: number;      // 元
+  turnoverRate?: number;    // %
+  firstLimitTime?: string;
+  breakCount: number;
+  limitStat?: string;
+  sectorScore: number;
+}
+
+export interface CoreResult {
+  date: string;
+  generatedAt: string;
+  marketMaxBoard: number;
+  dataQuality: 'full' | 'partial';
+  sectors: CoreSector[];
+  watchlist: CoreSector[];
+  stocks: CoreStock[];
 }
 
 // 「趋势 → 分析」板块聚合结果
