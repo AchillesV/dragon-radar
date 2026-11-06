@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Table, Select, Button, Space, message, Tag } from 'antd';
-import { SyncOutlined, TrophyOutlined } from '@ant-design/icons';
+import { SyncOutlined, TrophyOutlined, CopyOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ColumnType } from 'antd/es/table';
-import { useBoardPicks, useBoardDates, useSyncBoardPicks } from '../hooks/useBoardData';
+import { useBoardPreselection, useBoardPicks, useBoardDates, useSyncBoardPicks } from '../hooks/useBoardData';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { COLORS } from '../constants/colors';
 import { formatChangePct } from '../utils/format';
@@ -15,27 +15,168 @@ function formatVolume(v?: number): string {
   return `${v.toFixed(0)}手`;
 }
 
+function stageBadge(stage: 'pre' | 'final') {
+  return stage === 'pre' ? (
+    <Tag color="gold" style={{ margin: 0 }}>预选</Tag>
+  ) : (
+    <Tag color="red" style={{ margin: 0 }}>最终</Tag>
+  );
+}
+
 export default function Board() {
   const isMobile = useIsMobile();
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined);
+
+  const preselection = useBoardPreselection();
+  const history = useBoardPicks(selectedDate);
   const { data: dates = [] } = useBoardDates();
-  const { data, isLoading, isError, refetch } = useBoardPicks(selectedDate);
   const syncMutation = useSyncBoardPicks();
 
-  const picks = data ?? [];
+  const isHistory = !!selectedDate;
+  const stage: 'pre' | 'final' = isHistory ? 'final' : (preselection.data?.stage ?? 'pre');
+  const picks: BoardPick[] = isHistory
+    ? (history.data ?? [])
+    : (preselection.data?.picks ?? []);
+  const targetDate = isHistory
+    ? selectedDate
+    : (preselection.data?.targetDate ?? '');
+  const sourceDate = isHistory ? selectedDate : (preselection.data?.sourceDate ?? '');
+  const isLoading = isHistory ? history.isLoading : preselection.isLoading;
+  const isError = isHistory ? history.isError : preselection.isError;
+  const refetch = isHistory ? history.refetch : preselection.refetch;
   const top = useMemo(() => picks.find((p) => p.isTop) ?? picks[0], [picks]);
+
+  const handleCopy = async () => {
+    if (!picks.length) {
+      message.info('暂无可复制的股票');
+      return;
+    }
+    const text = picks.map((p) => `${p.name}(${p.code})`).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      message.success(`已复制 ${picks.length} 只股票`);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      message.success(`已复制 ${picks.length} 只股票`);
+    }
+  };
 
   const handleSync = () => {
     syncMutation.mutate(undefined, {
-      onSuccess: (rows) => {
-        setSelectedDate(undefined);
-        message.success(`已重新计算，共 ${rows.length} 只候选`);
+      onSuccess: (result) => {
+        if (result.stage === 'final') {
+          setSelectedDate(result.targetDate);
+          message.success(`已完成最终计算，共 ${result.picks.length} 只候选`);
+        } else {
+          setSelectedDate(undefined);
+          message.success(
+            `已更新预选，共 ${result.picks.length} 只；${result.targetDate} 09:30 后自动应用最终规则`,
+          );
+        }
       },
       onError: () => message.error('重新计算失败，请稍后重试'),
     });
   };
 
-  const columns: ColumnType<BoardPick>[] = [
+  const preColumns: ColumnType<BoardPick>[] = [
+    {
+      title: '序号',
+      dataIndex: 'rank',
+      key: 'rank',
+      width: 60,
+      align: 'center',
+      render: (rank: number) => (
+        <span style={{ color: COLORS.textSecondary, fontVariantNumeric: 'tabular-nums' }}>{rank}</span>
+      ),
+    },
+    {
+      title: '股票',
+      key: 'stock',
+      width: 150,
+      fixed: 'left',
+      render: (_: unknown, record: BoardPick) => (
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.textPrimary }}>{record.name}</div>
+          <div style={{ fontSize: 11, color: COLORS.textMuted }}>{record.code}</div>
+        </div>
+      ),
+    },
+    {
+      title: '板块',
+      dataIndex: 'industry',
+      key: 'industry',
+      width: 110,
+      render: (v?: string) =>
+        v ? (
+          <span
+            style={{
+              fontSize: 11,
+              color: COLORS.chartBlue,
+              background: 'rgba(24,144,255,0.12)',
+              border: '1px solid rgba(24,144,255,0.25)',
+              borderRadius: 3,
+              padding: '1px 6px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {v}
+          </span>
+        ) : (
+          <span style={{ color: COLORS.textMuted }}>—</span>
+        ),
+    },
+    {
+      title: '首板日',
+      dataIndex: 'limitUpDate',
+      key: 'limitUpDate',
+      width: 110,
+      render: (v?: string) => <span style={{ color: COLORS.textSecondary }}>{v ?? '—'}</span>,
+    },
+    {
+      title: '首板日涨幅',
+      dataIndex: 'changePct',
+      key: 'changePct',
+      width: 110,
+      sorter: (a, b) => a.changePct - b.changePct,
+      render: (v: number) => (
+        <span style={{ color: v >= 0 ? COLORS.rise : COLORS.fall, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+          {formatChangePct(v)}
+        </span>
+      ),
+    },
+    {
+      title: '收盘价',
+      dataIndex: 'close',
+      key: 'close',
+      width: 90,
+      render: (v?: number) => (
+        <span style={{ color: COLORS.textSecondary, fontVariantNumeric: 'tabular-nums' }}>
+          {v !== undefined ? v.toFixed(2) : '—'}
+        </span>
+      ),
+    },
+    {
+      title: '成交量',
+      dataIndex: 'volume',
+      key: 'volume',
+      width: 100,
+      render: (v?: number) => <span style={{ color: COLORS.textSecondary }}>{formatVolume(v)}</span>,
+    },
+    {
+      title: '说明',
+      dataIndex: 'description',
+      key: 'description',
+      width: 320,
+      render: (v?: string) => <span style={{ color: COLORS.textMuted, fontSize: 12 }}>{v ?? '—'}</span>,
+    },
+  ];
+
+  const finalColumns: ColumnType<BoardPick>[] = [
     {
       title: '排名',
       dataIndex: 'rank',
@@ -68,19 +209,16 @@ export default function Board() {
       dataIndex: 'openPct',
       key: 'openPct',
       width: 100,
-      sorter: (a, b) => a.openPct - b.openPct,
+      sorter: (a, b) => (a.openPct ?? 0) - (b.openPct ?? 0),
       defaultSortOrder: 'ascend',
-      render: (v: number) => (
-        <span
-          style={{
-            color: v >= 0 ? COLORS.rise : COLORS.fall,
-            fontWeight: 600,
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {formatChangePct(v)}
-        </span>
-      ),
+      render: (v?: number) =>
+        v === undefined ? (
+          <span style={{ color: COLORS.textMuted }}>—</span>
+        ) : (
+          <span style={{ color: v >= 0 ? COLORS.rise : COLORS.fall, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+            {formatChangePct(v)}
+          </span>
+        ),
     },
     {
       title: '开盘价',
@@ -166,23 +304,33 @@ export default function Board() {
   ];
 
   const dateOptions = [
-    { value: '', label: '最新交易日' },
-    ...dates.map((d) => ({ value: d, label: d })),
+    {
+      value: '',
+      label: (preselection.data?.stage ?? 'pre') === 'final' ? '当前（最终）' : '预选（下一交易日）',
+    },
+    ...dates.map((d) => ({ value: d, label: `${d}（最终）` })),
   ];
+  if (isHistory && selectedDate && !dates.includes(selectedDate)) {
+    dateOptions.push({ value: selectedDate, label: `${selectedDate}（最终）` });
+  }
 
   return (
     <div>
-      <div style={{ marginBottom: isMobile ? 12 : 20 }}>
-        <div style={{ fontSize: isMobile ? 16 : 20, fontWeight: 700, color: COLORS.textPrimary, marginBottom: 4 }}>
-          打板
+      <div style={{ marginBottom: isMobile ? 12 : 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: isMobile ? 16 : 20, fontWeight: 700, color: COLORS.textPrimary }}>打板</span>
+          {stageBadge(stage)}
         </div>
         <div style={{ fontSize: 12, color: COLORS.textMuted, lineHeight: 1.7 }}>
-          昨日首板 + 今日低开区间（开盘涨幅 -10% ~ -4%），按开盘涨幅升序排名，首选为策略买入标的
+          {stage === 'pre'
+            ? `下一交易日 ${targetDate || '—'} 预选：基于 ${sourceDate || '—'} 首板，仅应用规则 ①-④；${targetDate || '次日'} 09:30 后自动应用开盘涨幅过滤与排序`
+            : `最终选股 ${targetDate || '—'}：已应用规则 ①-⑥，按开盘涨幅升序排名，首选为策略买入标的`}
         </div>
-        {data && data.length > 0 && (
+        {picks.length > 0 && (
           <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 6 }}>
-            选股交易日 {data[0].date} · 候选 {data.length} 只
-            {top ? ` · 首选 ${top.name}（${top.code}）` : ''}
+            {stage === 'pre'
+              ? `预选 ${picks.length} 只（待次日开盘确认）`
+              : `最终 ${picks.length} 只${top ? ` · 首选 ${top.name}（${top.code}）` : ''}`}
           </div>
         )}
       </div>
@@ -201,15 +349,18 @@ export default function Board() {
           <Select
             size="small"
             value={selectedDate ?? ''}
-            style={{ width: 150 }}
+            style={{ width: 190 }}
             options={dateOptions}
             onChange={(v) => setSelectedDate(v || undefined)}
             placeholder="选择交易日"
           />
-          <span style={{ fontSize: 12, color: COLORS.textMuted }}>仅保留近 10 个交易日</span>
+          <span style={{ fontSize: 12, color: COLORS.textMuted }}>最终结果仅保留近 10 个交易日</span>
         </Space>
         <Space size={8}>
-          <Button size="small" onClick={() => refetch()} style={{ fontSize: 12 }}>
+          <Button size="small" icon={<CopyOutlined />} onClick={handleCopy} style={{ fontSize: 12 }}>
+            一键复制
+          </Button>
+          <Button size="small" icon={<ReloadOutlined />} onClick={() => refetch()} style={{ fontSize: 12 }}>
             刷新
           </Button>
           <Button
@@ -231,19 +382,19 @@ export default function Board() {
       ) : picks.length === 0 ? (
         <EmptyState
           description={
-            selectedDate
-              ? `${selectedDate} 无符合条件的打板标的`
-              : '今日暂无符合「昨日首板 + 今日低开 -10%~-4%」的标的'
+            stage === 'pre'
+              ? `暂无预选标的（基于 ${sourceDate || '最新交易日'} 首板，规则 ①-④）`
+              : `${targetDate || selectedDate} 无符合条件的最终标的`
           }
           height={220}
         />
       ) : (
         <Table<BoardPick>
-          columns={columns}
+          columns={stage === 'pre' ? preColumns : finalColumns}
           dataSource={picks}
           rowKey="code"
           size="small"
-          scroll={{ x: 1080 }}
+          scroll={{ x: stage === 'pre' ? 940 : 1080 }}
           pagination={{
             pageSize: 20,
             showSizeChanger: true,
@@ -267,10 +418,12 @@ export default function Board() {
         }}
       >
         <strong style={{ color: COLORS.textSecondary }}>选股规则</strong>
-        ：① 昨日（T-1）首板涨停且前一日未涨停；② 剔除昨日一字板；③ 剔除 T-1 收盘偏离 MA20 &gt; 30%；
-        ④ 剔除近 10 日涨停 ≥ 4 次；⑤ 今日开盘涨幅落在 [-10%, -4%)；⑥ 按开盘涨幅升序排名，第 1 名为策略首选。
+        ：① 首板涨停（涨停日当天涨停、前一交易日未涨停）；② 剔除一字板；③ 剔除首板日收盘偏离 MA20 &gt; 30%；
+        ④ 剔除近 10 日涨停 ≥ 4 次；⑤ 次日开盘涨幅落在 [-10%, -4%)；⑥ 按开盘涨幅升序排名，第 1 名为策略首选。
         股票池为主板（600/601/603/605/000/001/002/003），已剔除科创板 688、创业板 300/301、北交所与 ST。
-        结果每日落库，仅保留最近 10 个交易日。
+        <br />
+        收盘后展示「下一交易日预选」（仅规则 ①-④）；次日 09:30 后自动应用规则 ⑤⑥ 得到最终结果并落库，
+        也可随时点击「重新计算」立即触发。最终结果仅保留最近 10 个交易日。
       </div>
     </div>
   );

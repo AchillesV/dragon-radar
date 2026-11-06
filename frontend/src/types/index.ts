@@ -345,14 +345,15 @@ export interface BulkAnalysisResult {
   aiSummary: string;
 }
 
-// 「打板」每日选股（昨日首板 + 今日低开区间，按开盘涨幅升序）
+// 「打板」选股（预选 / 最终）
 export interface BoardPick {
   date: string;
+  stage: 'pre' | 'final';
   code: string;
   name: string;
   rank: number;
   isTop: boolean;
-  openPct: number;
+  openPct?: number;
   price?: number;
   close?: number;
   prevClose: number;
@@ -361,4 +362,11 @@ export interface BoardPick {
   industry?: string;
   limitUpDate?: string;
   description?: string;
+}
+
+export interface BoardStageResult {
+  stage: 'pre' | 'final';
+  targetDate: string;
+  sourceDate: string;
+  picks: BoardPick[];
 }

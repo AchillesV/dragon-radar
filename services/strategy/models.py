@@ -18,21 +18,30 @@ class AnomalyStock(BaseModel):
 
 
 class BoardPick(BaseModel):
-    """「打板」每日选股 —— 昨日首板 + 今日低开区间，按开盘涨幅升序"""
-    date: str                              # 选股交易日 T（YYYY-MM-DD）
+    """「打板」选股（预选 / 最终）——首板候选，最终按次日开盘涨幅升序"""
+    date: str                              # 目标交易日（预选为下一交易日，最终为当日）
+    stage: str = "final"                   # pre=预选（规则1~4） / final=最终（规则1~6）
     code: str
     name: str
-    rank: int                              # 按开盘涨幅升序的名次（1 起）
-    is_top: bool = False                   # 是否策略首选（rank == 1）
-    open_pct: float                        # 今日开盘涨幅（%）
-    price: Optional[float] = None          # 今日开盘价
-    close: Optional[float] = None          # 今日收盘价
-    prev_close: float = 0.0                # 昨日（T-1）收盘价
-    change_pct: float = 0.0                # 今日涨跌幅（%）
-    volume: Optional[float] = None         # 今日成交量（手）
+    rank: int                              # 展示序号（最终按开盘涨幅升序，预选按代码）
+    is_top: bool = False                   # 是否策略首选（仅最终 rank == 1）
+    open_pct: Optional[float] = None       # 开盘涨幅（%），预选时未知
+    price: Optional[float] = None          # 开盘价，预选时未知
+    close: Optional[float] = None          # 收盘价（预选为首板日收盘，最终为当日收盘）
+    prev_close: float = 0.0                # 首板日前一交易日收盘价
+    change_pct: float = 0.0                # 首板日涨跌幅（预选）/ 当日涨跌幅（最终）
+    volume: Optional[float] = None         # 成交量（手）
     industry: Optional[str] = None
-    limit_up_date: Optional[str] = None    # T-1 首板日
+    limit_up_date: Optional[str] = None    # 首板日
     description: Optional[str] = None
+
+
+class BoardStageResult(BaseModel):
+    """打板默认视图（预选或最终）"""
+    stage: str                             # pre | final
+    target_date: str                       # 目标交易日
+    source_date: str                       # 预选所基于的最新交易日
+    picks: List[BoardPick] = []
 
 
 class FeatureInfo(BaseModel):

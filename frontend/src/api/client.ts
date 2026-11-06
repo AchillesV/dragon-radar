@@ -21,6 +21,7 @@ import type {
   BacktestGroup,
   BacktestDateRow,
   BoardPick,
+  BoardStageResult,
 } from '../types';
 import {
   mockStocks,
@@ -38,6 +39,7 @@ import {
   mockTrendAnalysis,
   mockTrendBacktest,
   mockBoardPicks,
+  mockBoardPreselection,
 } from '../mock/data';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
@@ -602,16 +604,17 @@ export async function fetchCoreResult(): Promise<CoreResult> {
   return toCoreResult(res.data);
 }
 
-// ---- 打板每日选股 ----
+// ---- 打板选股（预选 / 最终）----
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toBoardPick(raw: any): BoardPick {
   return {
     date: raw.date ?? '',
+    stage: raw.stage ?? 'final',
     code: raw.code ?? '',
     name: raw.name ?? '',
     rank: raw.rank ?? 0,
     isTop: raw.is_top ?? raw.isTop ?? false,
-    openPct: raw.open_pct ?? raw.openPct ?? 0,
+    openPct: raw.open_pct ?? raw.openPct ?? undefined,
     price: raw.price ?? undefined,
     close: raw.close ?? undefined,
     prevClose: raw.prev_close ?? raw.prevClose ?? 0,
@@ -623,19 +626,35 @@ function toBoardPick(raw: any): BoardPick {
   };
 }
 
-export async function fetchBoardPicks(date?: string): Promise<BoardPick[]> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toBoardStageResult(raw: any): BoardStageResult {
+  return {
+    stage: raw.stage ?? 'final',
+    targetDate: raw.target_date ?? raw.targetDate ?? '',
+    sourceDate: raw.source_date ?? raw.sourceDate ?? '',
+    picks: (raw.picks ?? []).map(toBoardPick),
+  };
+}
+
+export async function fetchBoardPreselection(): Promise<BoardStageResult> {
+  if (USE_MOCK) { await delay(400); return mockBoardPreselection; }
+  const res = await http.get('/board/preselection', { timeout: 180000 });
+  return toBoardStageResult(res.data);
+}
+
+export async function fetchBoardPicks(date: string): Promise<BoardPick[]> {
   if (USE_MOCK) { await delay(400); return mockBoardPicks; }
   const res = await http.get('/board/candidates', {
-    params: date ? { date } : undefined,
+    params: { date },
     timeout: 180000,
   });
   return (res.data as unknown[]).map(toBoardPick);
 }
 
-export async function syncBoardPicks(): Promise<BoardPick[]> {
-  if (USE_MOCK) { await delay(800); return mockBoardPicks; }
+export async function syncBoardPicks(): Promise<BoardStageResult> {
+  if (USE_MOCK) { await delay(800); return mockBoardPreselection; }
   const res = await http.post('/board/sync', undefined, { timeout: 180000 });
-  return (res.data as unknown[]).map(toBoardPick);
+  return toBoardStageResult(res.data);
 }
 
 export async function fetchBoardDates(): Promise<string[]> {
