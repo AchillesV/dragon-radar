@@ -20,6 +20,7 @@ import type {
   BacktestStats,
   BacktestGroup,
   BacktestDateRow,
+  BoardPick,
 } from '../types';
 import {
   mockStocks,
@@ -36,6 +37,7 @@ import {
   mockCoreResult,
   mockTrendAnalysis,
   mockTrendBacktest,
+  mockBoardPicks,
 } from '../mock/data';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
@@ -598,6 +600,48 @@ export async function fetchCoreResult(): Promise<CoreResult> {
   if (USE_MOCK) { await delay(400); return mockCoreResult; }
   const res = await http.get('/screening/core');
   return toCoreResult(res.data);
+}
+
+// ---- 打板每日选股 ----
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toBoardPick(raw: any): BoardPick {
+  return {
+    date: raw.date ?? '',
+    code: raw.code ?? '',
+    name: raw.name ?? '',
+    rank: raw.rank ?? 0,
+    isTop: raw.is_top ?? raw.isTop ?? false,
+    openPct: raw.open_pct ?? raw.openPct ?? 0,
+    price: raw.price ?? undefined,
+    close: raw.close ?? undefined,
+    prevClose: raw.prev_close ?? raw.prevClose ?? 0,
+    changePct: raw.change_pct ?? raw.changePct ?? 0,
+    volume: raw.volume ?? undefined,
+    industry: raw.industry ?? undefined,
+    limitUpDate: raw.limit_up_date ?? raw.limitUpDate ?? undefined,
+    description: raw.description ?? undefined,
+  };
+}
+
+export async function fetchBoardPicks(date?: string): Promise<BoardPick[]> {
+  if (USE_MOCK) { await delay(400); return mockBoardPicks; }
+  const res = await http.get('/board/candidates', {
+    params: date ? { date } : undefined,
+    timeout: 180000,
+  });
+  return (res.data as unknown[]).map(toBoardPick);
+}
+
+export async function syncBoardPicks(): Promise<BoardPick[]> {
+  if (USE_MOCK) { await delay(800); return mockBoardPicks; }
+  const res = await http.post('/board/sync', undefined, { timeout: 180000 });
+  return (res.data as unknown[]).map(toBoardPick);
+}
+
+export async function fetchBoardDates(): Promise<string[]> {
+  if (USE_MOCK) { await delay(200); return ['2026-11-05']; }
+  const res = await http.get('/board/dates');
+  return res.data as string[];
 }
 
 // ---- 多条件过滤 ----

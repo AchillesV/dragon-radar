@@ -9,7 +9,7 @@ import { useTheme } from '../../hooks/useTheme';
 
 const navItems = [
   { path: '/', label: '行情总览' },
-  { path: '/anomaly', label: '异动监控' },
+  { path: '/board', label: '打板' },
   { path: '/screening', label: '特征筛选' },
   { path: '/trend', label: '趋势' },
   { path: '/core', label: '核心' },

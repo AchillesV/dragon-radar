@@ -8,6 +8,7 @@ from routers import screening as screening_router
 from routers import trend as trend_router
 from routers import core as core_router
 from routers import mainline as mainline_router
+from routers import board as board_router
 
 load_dotenv()
 
@@ -61,6 +62,7 @@ app.include_router(screening_router.router, prefix="/screening", tags=["screenin
 app.include_router(trend_router.router, prefix="/screening/trend", tags=["trend"])
 app.include_router(core_router.router, prefix="/screening/core", tags=["core"])
 app.include_router(mainline_router.router, prefix="/screening/mainline", tags=["mainline"])
+app.include_router(board_router.router, prefix="/board", tags=["board"])
 
 
 @app.get("/health")

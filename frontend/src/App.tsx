@@ -11,6 +11,7 @@ import AnomalyDetail from './pages/AnomalyDetail';
 import Screening from './pages/Screening';
 import Trend from './pages/Trend';
 import Core from './pages/Core';
+import Board from './pages/Board';
 import { COLORS } from './constants/colors';
 import { useIsMobile } from './hooks/useIsMobile';
 import { useTheme } from './hooks/useTheme';
@@ -97,6 +98,7 @@ export default function App() {
                 <Route path="/screening" element={<Screening />} />
                 <Route path="/trend" element={<Trend />} />
                 <Route path="/core" element={<Core />} />
+                <Route path="/board" element={<Board />} />
               </Routes>
             </main>
             {isMobile && <BottomTabBar />}

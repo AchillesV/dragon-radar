@@ -17,6 +17,24 @@ class AnomalyStock(BaseModel):
     extra: Optional[Dict[str, Any]] = None
 
 
+class BoardPick(BaseModel):
+    """「打板」每日选股 —— 昨日首板 + 今日低开区间，按开盘涨幅升序"""
+    date: str                              # 选股交易日 T（YYYY-MM-DD）
+    code: str
+    name: str
+    rank: int                              # 按开盘涨幅升序的名次（1 起）
+    is_top: bool = False                   # 是否策略首选（rank == 1）
+    open_pct: float                        # 今日开盘涨幅（%）
+    price: Optional[float] = None          # 今日开盘价
+    close: Optional[float] = None          # 今日收盘价
+    prev_close: float = 0.0                # 昨日（T-1）收盘价
+    change_pct: float = 0.0                # 今日涨跌幅（%）
+    volume: Optional[float] = None         # 今日成交量（手）
+    industry: Optional[str] = None
+    limit_up_date: Optional[str] = None    # T-1 首板日
+    description: Optional[str] = None
+
+
 class FeatureInfo(BaseModel):
     id: str
     name: str

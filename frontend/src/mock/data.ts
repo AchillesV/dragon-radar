@@ -11,6 +11,7 @@ import type {
   CoreResult,
   TrendAnalysis,
   TrendBacktest,
+  BoardPick,
 } from '../types';
 
 export const mockStocks: StockRow[] = [
@@ -1514,3 +1515,25 @@ export const mockTrendAnalysis: TrendAnalysis = {
     },
   ],
 };
+
+// 「打板」每日选股（mock）
+export const mockBoardPicks: BoardPick[] = [
+  {
+    date: '2026-11-05', code: '002407', name: '多氟多', rank: 1, isTop: true,
+    openPct: -6.82, price: 17.05, close: 17.90, prevClose: 18.32, changePct: -2.29,
+    volume: 235100, industry: '化学制品', limitUpDate: '2026-11-04',
+    description: '2026-11-04 首板涨停；今日开盘涨幅 -6.82%；按开盘涨幅升序排名第 1 名（策略首选）',
+  },
+  {
+    date: '2026-11-05', code: '600588', name: '用友网络', rank: 2, isTop: false,
+    openPct: -5.13, price: 14.87, close: 15.10, prevClose: 15.68, changePct: -3.70,
+    volume: 168900, industry: '软件服务', limitUpDate: '2026-11-04',
+    description: '2026-11-04 首板涨停；今日开盘涨幅 -5.13%；按开盘涨幅升序排名第 2 名',
+  },
+  {
+    date: '2026-11-05', code: '000977', name: '浪潮信息', rank: 3, isTop: false,
+    openPct: -4.35, price: 40.31, close: 41.02, prevClose: 42.15, changePct: -2.68,
+    volume: 402300, industry: '计算机设备', limitUpDate: '2026-11-04',
+    description: '2026-11-04 首板涨停；今日开盘涨幅 -4.35%；按开盘涨幅升序排名第 3 名',
+  },
+];

@@ -344,3 +344,21 @@ export interface BulkAnalysisResult {
   tomorrowFocus: string;
   aiSummary: string;
 }
+
+// 「打板」每日选股（昨日首板 + 今日低开区间，按开盘涨幅升序）
+export interface BoardPick {
+  date: string;
+  code: string;
+  name: string;
+  rank: number;
+  isTop: boolean;
+  openPct: number;
+  price?: number;
+  close?: number;
+  prevClose: number;
+  changePct: number;
+  volume?: number;
+  industry?: string;
+  limitUpDate?: string;
+  description?: string;
+}

@@ -79,6 +79,9 @@ registerProxy('/api/market', MARKET_SERVICE_URL, '/market')
 // /api/anomaly/* →  strategy-service/anomaly/*
 registerProxy('/api/anomaly', STRATEGY_SERVICE_URL, '/anomaly')
 
+// /api/board/*   →  strategy-service/board/*
+registerProxy('/api/board', STRATEGY_SERVICE_URL, '/board')
+
 // /api/screening/* → strategy-service/screening/*
 registerProxy('/api/screening', STRATEGY_SERVICE_URL, '/screening')
 
@@ -133,6 +136,7 @@ app.get('/', async () => ({
   routes: [
     '/api/market/*  → market-service:8001',
     '/api/anomaly/* → strategy-service:8002',
+    '/api/board/*   → strategy-service:8002',
     '/api/screening/* → strategy-service:8002',
     '/api/analysis/* → ai-analysis-service:8003',
     '/api/stock/*   → market-service:8001',

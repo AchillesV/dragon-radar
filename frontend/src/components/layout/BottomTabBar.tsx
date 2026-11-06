@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import { FundProjectionScreenOutlined, ThunderboltOutlined, FilterOutlined, LineChartOutlined, AimOutlined } from '@ant-design/icons';
+import { FundProjectionScreenOutlined, RocketOutlined, FilterOutlined, LineChartOutlined, AimOutlined } from '@ant-design/icons';
 import { COLORS } from '../../constants/colors';
 import type { ReactNode } from 'react';
 
 const tabs: { path: string; label: string; icon: ReactNode; end: boolean }[] = [
   { path: '/', label: '行情', icon: <FundProjectionScreenOutlined />, end: true },
-  { path: '/anomaly', label: '异动', icon: <ThunderboltOutlined />, end: false },
+  { path: '/board', label: '打板', icon: <RocketOutlined />, end: false },
   { path: '/screening', label: '筛选', icon: <FilterOutlined />, end: false },
   { path: '/trend', label: '趋势', icon: <LineChartOutlined />, end: false },
   { path: '/core', label: '核心', icon: <AimOutlined />, end: false },
