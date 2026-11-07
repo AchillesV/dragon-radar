@@ -13,6 +13,7 @@ import type {
   TrendBacktest,
   BoardPick,
   BoardStageResult,
+  BoardBacktest,
 } from '../types';
 
 export const mockStocks: StockRow[] = [
@@ -1558,4 +1559,26 @@ export const mockBoardPreselection: BoardStageResult = {
       description: '2026-11-06 首板涨停；预选未应用次日开盘涨幅过滤，待 2026-11-09 09:30 后自动确认',
     },
   ],
+};
+
+// 「打板」回测（mock，T 日开盘买入 → T+h 收盘卖出）
+export const mockBoardBacktest: BoardBacktest = {
+  generatedAt: '2026-11-07 09:20:00',
+  dateFrom: '2026-11-05',
+  dateTo: '2026-11-05',
+  sessions: 1,
+  pickTotal: 3,
+  horizons: [1, 3, 5, 10],
+  stats: [
+    { horizon: 1, samples: 3, winRate: 66.7, avgRet: 1.82, medianRet: 2.35, avgWin: 3.41, avgLoss: -1.36, payoffRatio: 2.51, profitFactor: 5.02, expectancy: 1.82, best: 4.26, worst: -1.36 },
+    { horizon: 3, samples: 3, winRate: 33.3, avgRet: -0.45, medianRet: -0.82, avgWin: 2.10, avgLoss: -1.73, payoffRatio: 1.21, profitFactor: 0.61, expectancy: -0.45, best: 2.10, worst: -2.46 },
+    { horizon: 5, samples: 3, winRate: 33.3, avgRet: -1.20, medianRet: -1.54, avgWin: 1.86, avgLoss: -2.73, payoffRatio: 0.68, profitFactor: 0.34, expectancy: -1.20, best: 1.86, worst: -3.40 },
+    { horizon: 10, samples: 3, winRate: 66.7, avgRet: 2.64, medianRet: 3.12, avgWin: 4.51, avgLoss: -1.10, payoffRatio: 4.10, profitFactor: 8.20, expectancy: 2.64, best: 5.33, worst: -1.10 },
+  ],
+  stocks: [
+    { date: '2026-11-05', code: '002407', name: '多氟多', industry: '化学制品', isTop: true, openPct: -6.82, entry: 17.05, ret1: 4.26, ret3: 2.10, ret5: 1.86, ret10: 5.33 },
+    { date: '2026-11-05', code: '600588', name: '用友网络', industry: '软件服务', isTop: false, openPct: -5.13, entry: 14.87, ret1: 2.35, ret3: -0.82, ret5: -1.54, ret10: 3.12 },
+    { date: '2026-11-05', code: '000977', name: '浪潮信息', industry: '计算机设备', isTop: false, openPct: -4.35, entry: 40.31, ret1: -1.36, ret3: -2.46, ret5: -3.40, ret10: -1.10 },
+  ],
+  note: '回测基于本地每日最终选股快照 + 腾讯日线：T 日开盘买入，T+h 收盘卖出；收益未计手续费与滑点。',
 };

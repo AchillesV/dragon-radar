@@ -318,3 +318,34 @@ class TrendBacktest(BaseModel):
     dates: List[BacktestDateRow] = []
     source: str = "tencent"
     note: str = ""
+
+
+# ---------------------------------------------------------------------------
+# 「打板」回测（T+1/T+3/T+5/T+10）
+# ---------------------------------------------------------------------------
+class BoardBacktestStock(BaseModel):
+    """单只最终标的的回测明细（T 日开盘买入 → T+h 收盘卖出）"""
+    date: str                              # 选股日
+    code: str
+    name: str
+    industry: Optional[str] = None
+    is_top: bool = False
+    open_pct: Optional[float] = None
+    entry: Optional[float] = None          # T 日开盘价（买入价）
+    ret1: Optional[float] = None           # T+1 收益 %
+    ret3: Optional[float] = None           # T+3 收益 %
+    ret5: Optional[float] = None           # T+5 收益 %
+    ret10: Optional[float] = None          # T+10 收益 %
+
+
+class BoardBacktest(BaseModel):
+    """「打板」页面回测结果"""
+    generated_at: str
+    date_from: str = ""
+    date_to: str = ""
+    sessions: int = 0
+    pick_total: int = 0
+    horizons: List[int] = []
+    stats: List[BacktestStats] = []
+    stocks: List[BoardBacktestStock] = []
+    note: str = ""

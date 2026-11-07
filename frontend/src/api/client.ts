@@ -22,6 +22,8 @@ import type {
   BacktestDateRow,
   BoardPick,
   BoardStageResult,
+  BoardBacktest,
+  BoardBacktestStock,
 } from '../types';
 import {
   mockStocks,
@@ -40,6 +42,7 @@ import {
   mockTrendBacktest,
   mockBoardPicks,
   mockBoardPreselection,
+  mockBoardBacktest,
 } from '../mock/data';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
@@ -661,6 +664,60 @@ export async function fetchBoardDates(): Promise<string[]> {
   if (USE_MOCK) { await delay(200); return ['2026-11-05']; }
   const res = await http.get('/board/dates');
   return res.data as string[];
+}
+
+// ---- 打板回测（T+1 / T+3 / T+5 / T+10）----
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toBoardBacktestStock(raw: any): BoardBacktestStock {
+  return {
+    date: raw.date ?? '',
+    code: raw.code ?? '',
+    name: raw.name ?? '',
+    industry: raw.industry ?? undefined,
+    isTop: raw.is_top ?? raw.isTop ?? false,
+    openPct: raw.open_pct ?? raw.openPct ?? undefined,
+    entry: raw.entry ?? undefined,
+    ret1: raw.ret1 ?? undefined,
+    ret3: raw.ret3 ?? undefined,
+    ret5: raw.ret5 ?? undefined,
+    ret10: raw.ret10 ?? undefined,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toBoardBacktest(raw: any): BoardBacktest {
+  return {
+    generatedAt: raw.generated_at ?? raw.generatedAt ?? '',
+    dateFrom: raw.date_from ?? raw.dateFrom ?? '',
+    dateTo: raw.date_to ?? raw.dateTo ?? '',
+    sessions: raw.sessions ?? 0,
+    pickTotal: raw.pick_total ?? raw.pickTotal ?? 0,
+    horizons: raw.horizons ?? [1, 3, 5, 10],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stats: (raw.stats ?? []).map((s: any) => ({
+      horizon: s.horizon,
+      samples: s.samples ?? 0,
+      winRate: s.win_rate ?? s.winRate ?? undefined,
+      avgRet: s.avg_ret ?? s.avgRet ?? undefined,
+      medianRet: s.median_ret ?? s.medianRet ?? undefined,
+      avgWin: s.avg_win ?? s.avgWin ?? undefined,
+      avgLoss: s.avg_loss ?? s.avgLoss ?? undefined,
+      payoffRatio: s.payoff_ratio ?? s.payoffRatio ?? undefined,
+      profitFactor: s.profit_factor ?? s.profitFactor ?? undefined,
+      expectancy: s.expectancy ?? undefined,
+      maxDrawdown: s.max_drawdown ?? s.maxDrawdown ?? undefined,
+      best: s.best ?? undefined,
+      worst: s.worst ?? undefined,
+    })),
+    stocks: (raw.stocks ?? []).map(toBoardBacktestStock),
+    note: raw.note ?? '',
+  };
+}
+
+export async function fetchBoardBacktest(days: number): Promise<BoardBacktest> {
+  if (USE_MOCK) { await delay(400); return mockBoardBacktest; }
+  const res = await http.get('/board/backtest', { params: { days }, timeout: 180000 });
+  return toBoardBacktest(res.data);
 }
 
 // ---- 多条件过滤 ----

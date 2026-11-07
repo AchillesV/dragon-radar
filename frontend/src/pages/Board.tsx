@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Table, Select, Button, Space, message, Tag } from 'antd';
+import { Table, Select, Button, Space, message, Tag, Tabs } from 'antd';
 import { SyncOutlined, TrophyOutlined, CopyOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ColumnType } from 'antd/es/table';
 import { useBoardPreselection, useBoardPicks, useBoardDates, useSyncBoardPicks } from '../hooks/useBoardData';
@@ -7,6 +7,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { COLORS } from '../constants/colors';
 import { formatChangePct } from '../utils/format';
 import { LoadingState, EmptyState, ErrorState } from '../components/common/StatusStates';
+import BoardBacktestView from '../components/board/BoardBacktestView';
 import type { BoardPick } from '../types';
 
 function formatVolume(v?: number): string {
@@ -25,6 +26,7 @@ function stageBadge(stage: 'pre' | 'final') {
 
 export default function Board() {
   const isMobile = useIsMobile();
+  const [activeTab, setActiveTab] = useState<'picks' | 'backtest'>('picks');
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined);
 
   const preselection = useBoardPreselection();
@@ -316,6 +318,17 @@ export default function Board() {
 
   return (
     <div>
+      <Tabs
+        activeKey={activeTab}
+        onChange={(k) => setActiveTab(k as 'picks' | 'backtest')}
+        items={[
+          { key: 'picks', label: '选股' },
+          { key: 'backtest', label: '回测' },
+        ]}
+        tabBarStyle={{ marginBottom: 16, borderBottom: '1px solid var(--c-border)' }}
+      />
+      {activeTab === 'picks' ? (
+        <>
       <div style={{ marginBottom: isMobile ? 12 : 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <span style={{ fontSize: isMobile ? 16 : 20, fontWeight: 700, color: COLORS.textPrimary }}>打板</span>
@@ -418,13 +431,17 @@ export default function Board() {
         }}
       >
         <strong style={{ color: COLORS.textSecondary }}>选股规则</strong>
-        ：① 首板涨停（涨停日当天涨停、前一交易日未涨停）；② 剔除一字板；③ 剔除首板日收盘偏离 MA20 &gt; 30%；
+        ：① 首板涨停（涨停日当天涨停、前一交易日未涨停，且首板日首次封板早于 14:10）；② 剔除一字板；③ 剔除首板日收盘偏离 MA20 &gt; 30%；
         ④ 剔除近 10 日涨停 ≥ 4 次；⑤ 次日开盘涨幅落在 [-10%, -4%)；⑥ 按开盘涨幅升序排名，第 1 名为策略首选。
         股票池为主板（600/601/603/605/000/001/002/003），已剔除科创板 688、创业板 300/301、北交所与 ST。
         <br />
         收盘后展示「下一交易日预选」（仅规则 ①-④）；次日 09:30 后自动应用规则 ⑤⑥ 得到最终结果并落库，
         也可随时点击「重新计算」立即触发。最终结果仅保留最近 10 个交易日。
       </div>
+        </>
+      ) : (
+        <BoardBacktestView />
+      )}
     </div>
   );
 }

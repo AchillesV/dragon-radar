@@ -370,3 +370,30 @@ export interface BoardStageResult {
   sourceDate: string;
   picks: BoardPick[];
 }
+
+// 「打板」回测（T+1 / T+3 / T+5 / T+10）
+export interface BoardBacktestStock {
+  date: string;
+  code: string;
+  name: string;
+  industry?: string;
+  isTop: boolean;
+  openPct?: number;
+  entry?: number;
+  ret1?: number;
+  ret3?: number;
+  ret5?: number;
+  ret10?: number;
+}
+
+export interface BoardBacktest {
+  generatedAt: string;
+  dateFrom: string;
+  dateTo: string;
+  sessions: number;
+  pickTotal: number;
+  horizons: number[];
+  stats: BacktestStats[];
+  stocks: BoardBacktestStock[];
+  note: string;
+}

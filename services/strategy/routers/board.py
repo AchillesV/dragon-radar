@@ -5,6 +5,7 @@
   1. 股票池：主板（600/601/603/605/000/001/002/003），剔除科创板 688、创业板
      300/301、北交所与 ST。
   2. 首板：涨停日当天涨停、前一交易日未涨停（连板数 = 1）。
+     剔除首板日 14:10 之后才首次封板的股票（QMT「14:10 后触板」规则）。
   3. 剔除一字板（开盘与收盘均贴在涨停价）。
   4. 黑名单：首板日收盘偏离 MA20 > 30%；近 10 个交易日涨停次数 >= 4。
 
@@ -17,21 +18,28 @@
     只有最终结果落库（SQLite），保留最近 10 个交易日。
 
 说明：
-  - 原策略依赖 QMT 分钟数据剔除「昨日 14:10 后首次触板」的股票；分钟数据在
-    服务端不可得，按原策略兜底口径「无法判断则不剔除」处理，因此本模块不做该项过滤。
+  - 「14:10 后触板」改用涨停池的「首次封板时间」字段判断，无需 QMT 分钟数据；
+    字段缺失时按原策略兜底口径「无法判断则不剔除」处理。
   - 价格口径使用腾讯日线（不复权），对绝大多数交易日与 QMT 前复权判定一致。
 """
 import asyncio
 import logging
 import time
 from datetime import datetime, timedelta
+from statistics import median
 from typing import List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter
 
 import board_store
-from models import BoardPick, BoardStageResult
+from models import (
+    BoardPick,
+    BoardStageResult,
+    BoardBacktest,
+    BoardBacktestStock,
+    BacktestStats,
+)
 from routers.screening import _fetch_hist_tencent, _HIST_CACHE
 from routers.trend import _get_session_date, _get_universe
 
@@ -61,6 +69,13 @@ OPEN_PCT_MIN = -0.10
 OPEN_PCT_MAX = -0.040
 OPEN_PCT_TOL = 1e-6
 
+# 首板日首次封板时间上限：14:10（QMT「14:10 后触板」规则）
+FIRST_SEAL_MAX_MIN = 14 * 60 + 10
+
+# 回测持有周期（T+1 / T+3 / T+5 / T+10）
+BT_HORIZONS = (1, 3, 5, 10)
+BT_CACHE_TTL = 60  # 秒（数据量小，短缓存即可，便于手动刷新看到最新结果）
+
 # 交易时段（北京时间，分钟数）：09:30 开盘、15:00 收盘
 OPEN_TIME_MIN = 9 * 60 + 30
 CLOSE_TIME_MIN = 15 * 60
@@ -87,6 +102,19 @@ def _safe_int(v) -> int:
         return int(float(v))
     except (TypeError, ValueError):
         return 0
+
+
+def _seal_minutes(v) -> Optional[int]:
+    """解析涨停池「首次封板时间」（HHMMSS / HH:MM:SS）为分钟数；无法解析返回 None。"""
+    if v is None:
+        return None
+    s = "".join(ch for ch in str(v).split(".")[0] if ch.isdigit())
+    if len(s) != 6:
+        return None
+    hh, mm = int(s[:2]), int(s[2:4])
+    if hh > 23 or mm > 59:
+        return None
+    return hh * 60 + mm
 
 
 def _limit_up_price(base_close: float) -> float:
@@ -154,6 +182,7 @@ def _market_phase() -> Tuple[str, str, bool]:
 def _get_candidate_pool(board_date: str) -> Optional[List[Tuple[str, str, Optional[str]]]]:
     """
     取指定交易日的涨停池，筛出主板首板（连板数 == 1）作为候选。
+    同时剔除当日 14:10 之后才首次封板的股票。
     数据源异常返回 None，由调用方决定是否回退全市场扫描。
     """
     try:
@@ -173,6 +202,10 @@ def _get_candidate_pool(board_date: str) -> Optional[List[Tuple[str, str, Option
         if not code or not _is_main_board(code) or _is_st_name(name):
             continue
         if _safe_int(r.get("连板数", 0)) != 1:
+            continue
+        # 首板日 14:10 后首次封板 → 剔除；时间不可得则保留（沿用原策略兜底口径）
+        seal = _seal_minutes(r.get("首次封板时间"))
+        if seal is not None and seal >= FIRST_SEAL_MAX_MIN:
             continue
         industry = str(r.get("所属行业", "") or "").strip() or None
         pool.append((code, name, industry))
@@ -517,6 +550,146 @@ async def auto_final_loop() -> None:
 
 
 # ---------------------------------------------------------------------------
+# 回测：对每日最终选出的每只股票做 T+1 / T+3 / T+5 / T+10 前向收益
+# ---------------------------------------------------------------------------
+_bt_cache: dict = {"key": None, "ts": 0.0, "value": None}
+
+
+def _fetch_hist_bt(code: str):
+    """回测用日线：需要覆盖选股日之后至少 10 个交易日。"""
+    df = _fetch_hist_tencent(code, days=60)
+    if df is None or len(df) < 20:
+        _HIST_CACHE.pop(code, None)
+        df = _fetch_hist_tencent(code, days=60)
+    return df
+
+
+def _forward_returns(df, date: str, entry: float) -> dict:
+    """T 日开盘买入，T+h 收盘卖出（h 为 date 之后的第 h 个交易日）的收益 %。"""
+    if entry <= 0:
+        return {}
+    dates = [str(x) for x in df["日期"].tolist()]
+    if date not in dates:
+        return {}
+    i = dates.index(date)
+    closes = [float(x) for x in df["收盘"].tolist()]
+    out = {}
+    for h in BT_HORIZONS:
+        j = i + h
+        out[h] = round((closes[j] / entry - 1) * 100, 2) if j < len(closes) else None
+    return out
+
+
+def _bt_agg(horizon: int, rets: List[float]) -> BacktestStats:
+    n = len(rets)
+    if n == 0:
+        return BacktestStats(horizon=horizon, samples=0)
+    wins = [r for r in rets if r > 0]
+    losses = [r for r in rets if r <= 0]
+    avg_win = sum(wins) / len(wins) if wins else None
+    avg_loss = sum(losses) / len(losses) if losses else None
+    win_rate = len(wins) / n * 100
+    profit_factor = (sum(wins) / abs(sum(losses))) if losses and sum(losses) != 0 else None
+    payoff = (avg_win / abs(avg_loss)) if (avg_win is not None and avg_loss) else None
+    expectancy = (win_rate / 100) * (avg_win or 0.0) + (1 - win_rate / 100) * (avg_loss or 0.0)
+    return BacktestStats(
+        horizon=horizon,
+        samples=n,
+        win_rate=round(win_rate, 1),
+        avg_ret=round(sum(rets) / n, 2),
+        median_ret=round(median(rets), 2),
+        avg_win=round(avg_win, 2) if avg_win is not None else None,
+        avg_loss=round(avg_loss, 2) if avg_loss is not None else None,
+        payoff_ratio=round(payoff, 2) if payoff is not None else None,
+        profit_factor=round(profit_factor, 2) if profit_factor is not None else None,
+        expectancy=round(expectancy, 2),
+        best=round(max(rets), 2),
+        worst=round(min(rets), 2),
+    )
+
+
+def run_board_backtest(days: int = 10) -> BoardBacktest:
+    """对最近的最终快照逐票回测；只读本地快照，不触发全市场扫描。"""
+    days = max(1, min(board_store.KEEP_DAYS, int(days or board_store.KEEP_DAYS)))
+    now = time.time()
+    cached = _bt_cache["value"]
+    if cached is not None and _bt_cache["key"] == days and now - _bt_cache["ts"] < BT_CACHE_TTL:
+        return cached
+
+    dates = sorted(board_store.list_dates(limit=days))
+    if not dates:
+        return BoardBacktest(
+            generated_at=_now_cn().strftime("%Y-%m-%d %H:%M:%S"),
+            horizons=list(BT_HORIZONS),
+            note="本地暂无最终选股快照，无法回测",
+        )
+
+    snapshots = {d: board_store.load_snapshot(d) for d in dates}
+    codes = {p.code for picks in snapshots.values() for p in picks}
+
+    hist = {}
+    if codes:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+            futs = {pool.submit(_fetch_hist_bt, c): c for c in codes}
+            for fut in futs:
+                try:
+                    hist[futs[fut]] = fut.result()
+                except Exception as e:
+                    logger.debug(f"回测日线获取失败 {futs[fut]}: {e}")
+                    hist[futs[fut]] = None
+
+    stocks: List[BoardBacktestStock] = []
+    for d in dates:
+        for p in snapshots[d]:
+            df = hist.get(p.code)
+            entry = p.price
+            rets = {}
+            if df is not None and not df.empty:
+                row = df[df["日期"].astype(str) == d]
+                if not row.empty:
+                    entry = float(row["开盘"].iloc[0])
+                rets = _forward_returns(df, d, entry or 0.0)
+            stocks.append(
+                BoardBacktestStock(
+                    date=d,
+                    code=p.code,
+                    name=p.name,
+                    industry=p.industry,
+                    is_top=p.is_top,
+                    open_pct=p.open_pct,
+                    entry=round(entry, 2) if entry else None,
+                    ret1=rets.get(1),
+                    ret3=rets.get(3),
+                    ret5=rets.get(5),
+                    ret10=rets.get(10),
+                )
+            )
+
+    stats = [
+        _bt_agg(h, [getattr(s, f"ret{h}") for s in stocks if getattr(s, f"ret{h}") is not None])
+        for h in BT_HORIZONS
+    ]
+
+    result = BoardBacktest(
+        generated_at=_now_cn().strftime("%Y-%m-%d %H:%M:%S"),
+        date_from=dates[0],
+        date_to=dates[-1],
+        sessions=len(dates),
+        pick_total=len(stocks),
+        horizons=list(BT_HORIZONS),
+        stats=stats,
+        stocks=stocks,
+        note=(
+            "回测基于本地每日最终选股快照 + 腾讯日线：T 日开盘买入（策略入场价），"
+            "T+h 收盘卖出（h=1/3/5/10 表示 T 之后的第 h 个交易日）。收益未计手续费与滑点；"
+            "T+10 等较长周期需要足够的后续交易日，越近的选股日样本越少。"
+        ),
+    )
+    _bt_cache.update(key=days, ts=now, value=result)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # 路由
 # ---------------------------------------------------------------------------
 
@@ -603,3 +776,21 @@ async def sync_board_candidates():
 async def get_board_dates():
     """最近 10 个有最终快照的交易日（倒序）。"""
     return board_store.list_dates(limit=board_store.KEEP_DAYS)
+
+
+@router.get("/backtest", response_model=BoardBacktest)
+async def get_board_backtest(days: int = 10):
+    """
+    「打板 → 回测」：对本地每个最终快照日的每只入选股票，统计 T+1/3/5/10 前向收益。
+
+    只读已落库的快照，不触发全市场扫描；数据源异常时返回空结构保障前端可渲染。
+    """
+    try:
+        return run_board_backtest(days=days)
+    except Exception as e:
+        logger.warning(f"打板回测失败: {e}")
+        return BoardBacktest(
+            generated_at=_now_cn().strftime("%Y-%m-%d %H:%M:%S"),
+            horizons=list(BT_HORIZONS),
+            note="回测数据源异常，请稍后重试",
+        )

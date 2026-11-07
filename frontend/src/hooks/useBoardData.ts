@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchBoardPicks, fetchBoardDates, fetchBoardPreselection, syncBoardPicks } from '../api/client';
+import {
+  fetchBoardPicks,
+  fetchBoardDates,
+  fetchBoardPreselection,
+  fetchBoardBacktest,
+  syncBoardPicks,
+} from '../api/client';
 
 // 「打板」默认视图（盘中为最终，其余为下一交易日预选）
 export function useBoardPreselection() {
@@ -36,6 +42,16 @@ export function useSyncBoardPicks() {
       queryClient.setQueryData(['board', 'preselection'], result);
       queryClient.invalidateQueries({ queryKey: ['board', 'dates'] });
       queryClient.invalidateQueries({ queryKey: ['board', 'picks'] });
+      queryClient.invalidateQueries({ queryKey: ['board', 'backtest'] });
     },
+  });
+}
+
+// 「打板 → 回测」：T+1/3/5/10 前向收益
+export function useBoardBacktest(days: number) {
+  return useQuery({
+    queryKey: ['board', 'backtest', days],
+    queryFn: () => fetchBoardBacktest(days),
+    staleTime: 5 * 60 * 1000,
   });
 }
