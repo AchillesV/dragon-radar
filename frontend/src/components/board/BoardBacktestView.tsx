@@ -113,7 +113,8 @@ export default function BoardBacktestView() {
   };
 
   const stats = data?.stats ?? [];
-  const stocks = data?.stocks ?? [];
+  // 逐票明细按交易日倒序（最新在前），同日保持入选名次
+  const stocks = [...(data?.stocks ?? [])].sort((a, b) => b.date.localeCompare(a.date));
   const hasAnyReturn = stocks.some(
     (s) => s.ret1 !== undefined || s.ret3 !== undefined || s.ret5 !== undefined || s.ret10 !== undefined,
   );

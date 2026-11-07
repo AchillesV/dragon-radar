@@ -155,7 +155,8 @@ export default function TrendBacktestView() {
   };
 
   const stats = data?.stats ?? [];
-  const stocks = data?.stocks ?? [];
+  // 逐票明细按信号日倒序（最新在前），同日保持信号排名
+  const stocks = [...(data?.stocks ?? [])].sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <div>
