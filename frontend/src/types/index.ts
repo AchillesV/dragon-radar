@@ -238,6 +238,20 @@ export interface BacktestDateRow {
   winRate5?: number;
 }
 
+export interface TrendBacktestStock {
+  date: string;
+  code: string;
+  name: string;
+  buyStatus?: string;
+  buyStatusLabel?: string;
+  lifecycleLabel?: string;
+  score?: number;
+  ret1?: number;
+  ret3?: number;
+  ret5?: number;
+  ret10?: number;
+}
+
 export interface TrendBacktest {
   generatedAt: string;
   dateFrom: string;
@@ -250,6 +264,7 @@ export interface TrendBacktest {
   byBuyStatus: BacktestGroup[];
   byLifecycle: BacktestGroup[];
   dates: BacktestDateRow[];
+  stocks: TrendBacktestStock[];
   source: string;
   note: string;
 }

@@ -303,6 +303,21 @@ class BacktestDateRow(BaseModel):
     win_rate5: Optional[float] = None
 
 
+class TrendBacktestStock(BaseModel):
+    """逐票回测明细（每交易日仅取信号前 3 只，T 收盘买入 → T+h 收盘卖出）"""
+    date: str
+    code: str
+    name: str
+    buy_status: Optional[str] = None
+    buy_status_label: Optional[str] = None
+    lifecycle_label: Optional[str] = None
+    score: Optional[float] = None
+    ret1: Optional[float] = None
+    ret3: Optional[float] = None
+    ret5: Optional[float] = None
+    ret10: Optional[float] = None
+
+
 class TrendBacktest(BaseModel):
     """「趋势 → 分析」策略回测结果"""
     generated_at: str
@@ -316,6 +331,7 @@ class TrendBacktest(BaseModel):
     by_buy_status: List[BacktestGroup] = []
     by_lifecycle: List[BacktestGroup] = []
     dates: List[BacktestDateRow] = []
+    stocks: List[TrendBacktestStock] = []
     source: str = "tencent"
     note: str = ""
 

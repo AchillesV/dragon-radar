@@ -8,9 +8,10 @@ T+1 / T+3 / T+5 / T+10 前向收益回测。
   1. 取本地最近 N 个交易日快照（每日趋势候选池，含当日算出的放量启动日 D / D 日量 / 基准均量）；
   2. 对每个交易日 T，只用「截至 T」的日线 + 快照自带的字段（均为 T 时点信息）计算每只候选股的
      SmartMoney / RS / 生命周期 / 买点状态；
-  3. 取买点状态 ∈ {突破确认, 缩量回踩, 二次启动, 趋势运行} 的综合分前 10 只作为当日「交易信号」；
+  3. 取买点状态 ∈ {突破确认, 缩量回踩, 二次启动, 趋势运行} 的综合分前 3 只作为当日「交易信号」；
   4. 用 T 之后的真实日线计算 T+1/T+3/T+5/T+10 收益（T 收盘买入 → T+h 收盘卖出），汇总
-     胜率、平均收益、盈亏比、Profit Factor、期望收益、最大回撤；并按买点状态 / 生命周期分组统计。
+     胜率、平均收益、盈亏比、Profit Factor、期望收益、最大回撤；并按买点状态 / 生命周期分组统计，
+     同时输出逐票明细（每交易日仅取信号前 3 只）。
 
 口径与局限（会写进接口返回的 note，前端展示）：
   * 板块与资金维度（板块热度、主力净额）无法回溯到历史时点，回测中按中性处理 —— 因此回测验证的是
@@ -37,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 HORIZONS: Tuple[int, ...] = (1, 3, 5, 10)
 DEFAULT_SESSIONS = 30        # 默认回测最近 30 个有快照的交易日
-MAX_SIGNALS = 10             # 每个交易日取前 N 只交易信号
+MAX_SIGNALS = 3              # 每个交易日取前 N 只交易信号（逐票明细同样只展示这前 N 只）
 BT_TTL = 7200                # 回测结果缓存 2 小时
 HIST_TTL = 3600
 
@@ -351,10 +352,27 @@ def run_backtest(sessions: int = DEFAULT_SESSIONS, max_signals: int = MAX_SIGNAL
         "by_buy_status": _group(trades, "buy_status", BUY_LABELS),
         "by_lifecycle": _group(trades, "lifecycle_label"),
         "dates": date_rows,
+        "stocks": [
+            {
+                "date": t["date"],
+                "code": t["code"],
+                "name": t["name"],
+                "buy_status": t.get("buy_status"),
+                "buy_status_label": BUY_LABELS.get(t.get("buy_status") or "", t.get("buy_status") or ""),
+                "lifecycle_label": t.get("lifecycle_label"),
+                "score": round(t["score"], 2) if t.get("score") is not None else None,
+                "ret1": t.get(1),
+                "ret3": t.get(3),
+                "ret5": t.get(5),
+                "ret10": t.get(10),
+            }
+            for t in trades
+        ],
         "source": "tencent",
         "note": (
             "回测基于本地每日候选快照 + 腾讯日线：对每个交易日 T，仅用截至 T 的量价数据算信号，"
-            "取买点可关注（突破/回踩/二次启动/趋势运行）的前 10 只，统计 T 收盘买入后 T+1/3/5/10 的收益。"
+            "取买点可关注（突破/回踩/二次启动/趋势运行）的综合分前 3 只（逐票明细同样只展示这 3 只），"
+            "统计 T 收盘买入后 T+1/3/5/10 的收益。"
             "板块与资金维度无法回溯历史，回测按中性处理，验证的是价量信号部分；收益未计手续费与滑点。"
         ),
     }
@@ -368,7 +386,7 @@ def _empty_result(note: str) -> dict:
         "date_from": "", "date_to": "", "sessions": 0,
         "universe_size": 0, "signal_total": 0,
         "horizons": list(HORIZONS), "stats": [],
-        "by_buy_status": [], "by_lifecycle": [], "dates": [],
+        "by_buy_status": [], "by_lifecycle": [], "dates": [], "stocks": [],
         "source": "tencent", "note": note,
     }
 
@@ -385,6 +403,6 @@ _MOCK_BACKTEST = {
         {"horizon": 5, "samples": 0},
         {"horizon": 10, "samples": 0},
     ],
-    "by_buy_status": [], "by_lifecycle": [], "dates": [],
+    "by_buy_status": [], "by_lifecycle": [], "dates": [], "stocks": [],
     "source": "mock", "note": "示例数据（回测数据源异常）",
 }

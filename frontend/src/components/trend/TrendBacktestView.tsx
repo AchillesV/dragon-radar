@@ -1,4 +1,4 @@
-import { Button, Card, Select, Table, Tag, Tooltip } from 'antd';
+import { Button, Card, Select, Table, Tag } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import ReactECharts from 'echarts-for-react';
@@ -8,11 +8,10 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import { COLORS, type RawColors } from '../../constants/colors';
 import { useTheme } from '../../hooks/useTheme';
 import { LoadingState, ErrorState, EmptyState } from '../common/StatusStates';
-import { formatChangePct } from '../../utils/format';
-import type { BacktestStats, BacktestGroup, BacktestDateRow } from '../../types';
+import type { BacktestStats, TrendBacktestStock } from '../../types';
 
 function retColor(v?: number): string {
-  if (v === undefined) return COLORS.textMuted;
+  if (v === undefined || v === null) return COLORS.textMuted;
   return v > 0 ? COLORS.rise : v < 0 ? COLORS.fall : COLORS.textSecondary;
 }
 
@@ -91,39 +90,54 @@ function StatCard({ s }: { s: BacktestStats }) {
   );
 }
 
-function GroupTable({ title, rows, tip }: { title: string; rows: BacktestGroup[]; tip?: string }) {
-  const columns = [
-    { title: '分组', dataIndex: 'label', key: 'label',
-      render: (v: string, r: BacktestGroup) => (
-        <span>
-          <Tag color="blue" style={{ marginInlineEnd: 6 }}>{v}</Tag>
-          <span style={{ fontSize: 11, color: COLORS.textMuted }}>{r.key}</span>
-        </span>
-      ) },
-    { title: '样本', dataIndex: 'samples', key: 'samples', width: 70 },
-    { title: '胜率', dataIndex: 'winRate', key: 'winRate', width: 80,
-      render: (v?: number) => <span style={{ color: (v ?? 0) >= 50 ? COLORS.rise : COLORS.textSecondary }}>{fmt(v, '%')}</span> },
-    { title: 'T+5 平均', dataIndex: 'avgRet5', key: 'avgRet5', width: 90,
-      render: (v?: number) => <span style={{ color: retColor(v) }}>{fmt(v, '%')}</span> },
-  ];
-  return (
-    <Card size="small" title={<span style={{ fontSize: 13 }}>{title}{tip && <Tooltip title={tip}><span style={{ color: COLORS.textMuted, marginLeft: 6, cursor: 'help' }}>ⓘ</span></Tooltip>}</span>}
-      style={{ background: COLORS.bgCard, border: '1px solid var(--c-border)', marginBottom: 14 }}
-      styles={{ body: { padding: 0 } }}>
-      <Table<BacktestGroup>
-        rowKey="key"
-        size="small"
-        columns={columns}
-        dataSource={rows}
-        pagination={false}
-        locale={{ emptyText: '暂无样本' }}
-      />
-    </Card>
-  );
-}
+const retCell = (v?: number) => (
+  <span style={{ color: retColor(v), fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(v, '%')}</span>
+);
+
+const columns = [
+  { title: '信号日', dataIndex: 'date', key: 'date', width: 105 },
+  {
+    title: '股票',
+    key: 'stock',
+    width: 150,
+    render: (_: unknown, r: TrendBacktestStock) => (
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.textPrimary }}>{r.name}</div>
+        <div style={{ fontSize: 11, color: COLORS.textMuted }}>{r.code}</div>
+      </div>
+    ),
+  },
+  {
+    title: '买点状态',
+    dataIndex: 'buyStatusLabel',
+    key: 'buyStatusLabel',
+    width: 110,
+    render: (v: string | undefined, r: TrendBacktestStock) =>
+      v ? <Tag color="blue">{v}</Tag> : <span style={{ color: COLORS.textMuted }}>{r.buyStatus ?? '--'}</span>,
+  },
+  {
+    title: '生命周期',
+    dataIndex: 'lifecycleLabel',
+    key: 'lifecycleLabel',
+    width: 105,
+    render: (v?: string) => <span style={{ fontSize: 12, color: COLORS.textSecondary }}>{v ?? '--'}</span>,
+  },
+  {
+    title: '综合分',
+    dataIndex: 'score',
+    key: 'score',
+    width: 85,
+    render: (v?: number) => <span style={{ color: COLORS.chartGold, fontWeight: 600 }}>{v !== undefined ? v.toFixed(2) : '--'}</span>,
+  },
+  { title: 'T+1', dataIndex: 'ret1', key: 'ret1', width: 85, render: retCell },
+  { title: 'T+3', dataIndex: 'ret3', key: 'ret3', width: 85, render: retCell },
+  { title: 'T+5', dataIndex: 'ret5', key: 'ret5', width: 85, render: retCell },
+  { title: 'T+10', dataIndex: 'ret10', key: 'ret10', width: 85, render: retCell },
+];
 
 /**
- * 「趋势 → 分析 → 回测」Tab —— Phase 5：T+1/T+3/T+5/T+10 前向收益回测
+ * 「趋势 → 分析 → 回测」Tab —— 参照打板回测：统计卡 + 平均收益图 + 逐票明细
+ * 逐票明细每个交易日只展示交易信号（综合分）前 3 只。
  */
 export default function TrendBacktestView() {
   const [sessions, setSessions] = useState<number>(26);
@@ -141,15 +155,7 @@ export default function TrendBacktestView() {
   };
 
   const stats = data?.stats ?? [];
-  const dateColumns = [
-    { title: '信号日', dataIndex: 'date', key: 'date' },
-    { title: '候选', dataIndex: 'candidates', key: 'candidates', width: 70 },
-    { title: '信号', dataIndex: 'signals', key: 'signals', width: 70 },
-    { title: 'T+5 胜率', dataIndex: 'winRate5', key: 'winRate5', width: 90,
-      render: (v?: number) => <span style={{ color: (v ?? 0) >= 50 ? COLORS.rise : COLORS.textSecondary }}>{fmt(v, '%')}</span> },
-    { title: 'T+5 平均', dataIndex: 'avgRet5', key: 'avgRet5', width: 90,
-      render: (v?: number) => <span style={{ color: retColor(v) }}>{fmt(v, '%')}</span> },
-  ];
+  const stocks = data?.stocks ?? [];
 
   return (
     <div>
@@ -162,7 +168,7 @@ export default function TrendBacktestView() {
                 {data.dateFrom} ~ {data.dateTo} · {data.sessions} 个交易日 · 信号 {data.signalTotal} 笔
                 {data.universeSize > 0 && <span> · 覆盖 {data.universeSize} 只</span>}
               </>
-            ) : 'T+1 / T+3 / T+5 / T+10 前向收益'}
+            ) : 'T 收盘买入，T+1 / T+3 / T+5 / T+10 收盘卖出'}
             {data?.source === 'mock' && <span style={{ color: COLORS.chartGold }}> · 数据源异常，展示示例</span>}
           </div>
         </div>
@@ -193,7 +199,7 @@ export default function TrendBacktestView() {
         <EmptyState description="暂无回测数据（本地缺少足够的每日快照）" />
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
             {stats.map((s) => <StatCard key={s.horizon} s={s} />)}
           </div>
 
@@ -203,20 +209,16 @@ export default function TrendBacktestView() {
             <ReactECharts option={buildRetOption(stats, rawColors)} style={{ height: 200 }} notMerge />
           </Card>
 
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 14 }}>
-            <GroupTable title="按买点状态（T+5）" rows={data.byBuyStatus} tip="突破确认 / 二次启动 / 缩量回踩 / 趋势运行" />
-            <GroupTable title="按生命周期阶段（T+5）" rows={data.byLifecycle} tip="放量启动 / 趋势确认 / 趋势加速 等" />
-          </div>
-
-          <Card size="small" title={<span style={{ fontSize: 13 }}>逐日信号表现（T+5）</span>}
+          <Card size="small" title={<span style={{ fontSize: 13 }}>逐票回测明细（每交易日信号前 3 只）</span>}
             style={{ background: COLORS.bgCard, border: '1px solid var(--c-border)' }}
             styles={{ body: { padding: 0 } }}>
-            <Table<BacktestDateRow>
-              rowKey="date"
+            <Table<TrendBacktestStock>
+              rowKey={(r) => `${r.date}-${r.code}`}
               size="small"
-              columns={dateColumns}
-              dataSource={data.dates}
-              pagination={data.dates.length > 12 ? { pageSize: 12, size: 'small' } : false}
+              columns={columns}
+              dataSource={stocks}
+              scroll={{ x: 950 }}
+              pagination={stocks.length > 20 ? { pageSize: 20, size: 'small', showTotal: (t) => `共 ${t} 只` } : false}
               locale={{ emptyText: '暂无样本' }}
             />
           </Card>
@@ -224,7 +226,7 @@ export default function TrendBacktestView() {
       )}
 
       <div style={{ marginTop: 16, padding: '12px 16px', background: COLORS.bgCard, borderRadius: 8, fontSize: 12, color: COLORS.textMuted, lineHeight: 1.7 }}>
-        💡 <strong style={{ color: COLORS.textSecondary }}>回测口径</strong>：{data?.note || '对每个交易日 T，仅用截至 T 的量价数据算信号，取买点可关注的前 10 只，统计 T 收盘买入后 T+1/3/5/10 的收益。'}<br />
+        💡 <strong style={{ color: COLORS.textSecondary }}>回测口径</strong>：{data?.note || '对每个交易日 T，仅用截至 T 的量价数据算信号，取买点可关注的综合分前 3 只，统计 T 收盘买入后 T+1/3/5/10 的收益。'}<br />
         胜率为收益 &gt; 0 的样本占比；盈亏比 = 平均盈利 / |平均亏损|；Profit Factor = 盈利总额 / |亏损总额|；
         期望收益 = 胜率 × 平均盈利 + 败率 × 平均亏损。本页仅用于策略验证，不构成买入/卖出建议。
       </div>
