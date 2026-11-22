@@ -8,11 +8,12 @@
      剔除首板日 14:10 之后才首次封板的股票（QMT「14:10 后触板」规则）。
   3. 剔除一字板（开盘与收盘均贴在涨停价）。
   4. 黑名单：首板日收盘偏离 MA20 > 30%；近 10 个交易日涨停次数 >= 4。
+  5. 剔除：首板日实际换手率（成交量/流通股本）> 40% 且 当日龙虎榜净卖出（取交集）。
 
 两阶段：
-  - 预选（pre）：收盘后基于「当日首板」套用规则 1~4，给出下一交易日的预选池，
-    不应用开盘涨幅过滤与排序（规则 5、6 需要次日开盘价，尚不可知）。
-  - 最终（final）：次日 09:30 后基于「昨日首板」+ 当日开盘价，套用规则 1~6，
+  - 预选（pre）：收盘后基于「当日首板」套用规则 1~5，给出下一交易日的预选池，
+    不应用开盘涨幅过滤与排序（规则 6、7 需要次日开盘价，尚不可知）。
+  - 最终（final）：次日 09:30 后基于「昨日首板」+ 当日开盘价，套用规则 1~7，
     开盘涨幅 ∈ [-10%, -4%)，并按开盘涨幅升序排名，第 1 名为策略首选。
     用户点击「重新计算」会立即触发最终计算；未点击时服务端 09:30 后自动计算。
     只有最终结果落库（SQLite），保留最近 10 个交易日。
@@ -20,6 +21,8 @@
 说明：
   - 「14:10 后触板」改用涨停池的「首次封板时间」字段判断，无需 QMT 分钟数据；
     字段缺失时按原策略兜底口径「无法判断则不剔除」处理。
+  - 换手率/龙虎榜任一数据缺失时一律保留（与 QMT 策略兜底口径一致）：
+    akshare 未提供「自由流通股本」，分母回退为「已上市流通A股」，与流通换手率同口径。
   - 价格口径使用腾讯日线（不复权），对绝大多数交易日与 QMT 前复权判定一致。
 """
 import asyncio
@@ -72,6 +75,12 @@ OPEN_PCT_TOL = 1e-6
 # 首板日首次封板时间上限：14:10（QMT「14:10 后触板」规则）
 FIRST_SEAL_MAX_MIN = 14 * 60 + 10
 
+# 首板日「实际换手率 > 40% 且 龙虎榜净卖出」剔除（取交集，两条同时满足才剔除）
+TURN_FILTER_ON = True
+TURN_FILTER_THR = 40.0
+LHB_CACHE_TTL = 3600          # 龙虎榜按日缓存 1 小时
+FLOAT_CACHE_TTL = 24 * 3600   # 股本变动极少，按代码缓存 1 天
+
 # 回测持有周期（T+1 / T+3 / T+5 / T+10）
 BT_HORIZONS = (1, 3, 5, 10)
 BT_CACHE_TTL = 60  # 秒（数据量小，短缓存即可，便于手动刷新看到最新结果）
@@ -87,6 +96,8 @@ PRE_CACHE_TTL = 60  # 预选结果短缓存，避免同一分钟内重复全量�
 # 自动最终计算完成后标记日期，避免同一天重复扫描
 _auto_finalized_date: Optional[str] = None
 _pre_cache: dict = {"key": None, "ts": 0.0, "value": None}
+_lhb_cache: dict = {}    # 交易日 -> (ts, {代码: 龙虎榜净买额} / None)
+_float_cache: dict = {}  # 代码 -> (ts, 流通股本(股) / None)
 
 
 def _is_main_board(code: str) -> bool:
@@ -231,7 +242,112 @@ def _fetch_hist_full(code: str, days: int = 30):
     return _fetch_hist_tencent(code, days=days)
 
 
-def _evaluate_final(code: str, name: str, industry: Optional[str], t_date: str) -> Optional[dict]:
+def _get_lhb_net(date: str) -> Optional[dict]:
+    """
+    指定交易日的龙虎榜「净买额」（元），返回 {代码: 净额}；未上榜的股票不在字典中。
+
+    同一只股票当日可能因多个上榜原因出现多行，这里取「龙虎榜成交额」最大的那条，
+    避免同一份席位数据被重复计入。整日数据取不到时返回 None（调用方按「数据缺失不剔除」处理）。
+    """
+    now = time.time()
+    cached = _lhb_cache.get(date)
+    if cached and now - cached[0] < LHB_CACHE_TTL:
+        return cached[1]
+
+    d = str(date).replace("-", "")
+    try:
+        import akshare as ak
+
+        df = ak.stock_lhb_detail_em(start_date=d, end_date=d)
+    except Exception as e:
+        logger.warning(f"打板：龙虎榜获取失败 {date}: {e}")
+        _lhb_cache[date] = (now, None)
+        return None
+
+    if df is None or df.empty:
+        _lhb_cache[date] = (now, None)
+        return None
+
+    nets: dict = {}
+    amounts: dict = {}
+    for _, r in df.iterrows():
+        code = str(r.get("代码", "")).strip().zfill(6)
+        try:
+            net = float(r.get("龙虎榜净买额"))
+        except (TypeError, ValueError):
+            continue
+        if net != net:  # NaN
+            continue
+        try:
+            amt = float(r.get("龙虎榜成交额") or 0)
+        except (TypeError, ValueError):
+            amt = 0.0
+        if code not in nets or amt > amounts.get(code, -1.0):
+            nets[code] = net
+            amounts[code] = amt
+    _lhb_cache[date] = (now, nets)
+    return nets
+
+
+def _float_shares(code: str) -> Optional[float]:
+    """
+    首板日流通股本（股）。
+
+    akshare 未提供「自由流通股本」数据源，这里回退到「已上市流通A股」口径，
+    与 QMT 策略中「自由流通股本取不到时回退流通口径」的兜底逻辑一致。
+    """
+    now = time.time()
+    cached = _float_cache.get(code)
+    if cached and now - cached[0] < FLOAT_CACHE_TTL:
+        return cached[1]
+
+    shares = None
+    try:
+        import akshare as ak
+
+        df = ak.stock_zh_a_gbjg_em(symbol=code)
+        if df is not None and not df.empty and "已上市流通A股" in df.columns:
+            sub = df.copy()
+            if "变更日期" in sub.columns:
+                sub = sub.sort_values("变更日期")
+            vals = sub["已上市流通A股"].dropna()
+            if len(vals):
+                shares = float(vals.iloc[-1])
+    except Exception as e:
+        logger.debug(f"打板：流通股本获取失败 {code}: {e}")
+
+    _float_cache[code] = (now, shares)
+    return shares
+
+
+def _reject_high_turn_net_sell(code: str, vol_lots: float, lhb: Optional[dict]) -> bool:
+    """
+    剔除条件（取交集）：首板日实际换手率 > 40% 且 龙虎榜净卖出。
+
+    实际换手率 = 成交量 / 流通股本（腾讯日线成交量单位为「手」，1 手 = 100 股）。
+    数据缺失时一律保留：未上龙虎榜 / 净买入 / 换手率或股本取不到，都不剔除。
+    """
+    if not TURN_FILTER_ON or lhb is None:
+        return False
+    net = lhb.get(code)
+    if net is None or net >= 0:
+        return False
+    shares = _float_shares(code)
+    if not shares or shares <= 0 or not vol_lots or vol_lots <= 0:
+        return False
+    turn = vol_lots * 100.0 / shares * 100.0
+    if turn > TURN_FILTER_THR + 1e-9:
+        logger.info(
+            f"打板：剔除 {code}（换手率 {turn:.1f}% > {TURN_FILTER_THR:.0f}%，"
+            f"龙虎榜净卖出 {net / 1e8:.2f} 亿）"
+        )
+        return True
+    return False
+
+
+def _evaluate_final(
+    code: str, name: str, industry: Optional[str], t_date: str, lhb: Optional[dict] = None
+) -> Optional[dict]:
     """最终口径：首板日 = T-1，按 T 日开盘涨幅筛选。"""
     df = _fetch_hist_full(code)
     if df is None or df.empty or len(df) < BAN_HIGH_DEV_N + 1:
@@ -283,7 +399,11 @@ def _evaluate_final(code: str, name: str, industry: Optional[str], t_date: str) 
     if boards >= BAN_MANY_BOARDS_THR:
         return None
 
-    # 5) 今日开盘涨幅区间 [-10%, -4%)
+    # 5) 剔除：首板日（T-1）实际换手率 > 40% 且 龙虎榜净卖出
+    if _reject_high_turn_net_sell(code, volumes[-2], lhb):
+        return None
+
+    # 6) 今日开盘涨幅区间 [-10%, -4%)
     o_t = opens[-1]
     if o_t <= 0:
         return None
@@ -308,7 +428,9 @@ def _evaluate_final(code: str, name: str, industry: Optional[str], t_date: str) 
     }
 
 
-def _evaluate_pre(code: str, name: str, industry: Optional[str], t_date: str) -> Optional[dict]:
+def _evaluate_pre(
+    code: str, name: str, industry: Optional[str], t_date: str, lhb: Optional[dict] = None
+) -> Optional[dict]:
     """预选口径：首板日 = t_date（最新交易日），只套用规则 1~4，不应用开盘涨幅与排序。"""
     df = _fetch_hist_full(code)
     if df is None or df.empty or len(df) < BAN_HIGH_DEV_N + 1:
@@ -364,6 +486,10 @@ def _evaluate_pre(code: str, name: str, industry: Optional[str], t_date: str) ->
     if boards >= BAN_MANY_BOARDS_THR:
         return None
 
+    # 5) 剔除：首板日（T）实际换手率 > 40% 且 龙虎榜净卖出
+    if _reject_high_turn_net_sell(code, volumes[-1], lhb):
+        return None
+
     change_pct = c_t / c_t1 - 1.0 if c_t1 > 0 else 0.0
     return {
         "code": code,
@@ -380,7 +506,10 @@ def _evaluate_pre(code: str, name: str, industry: Optional[str], t_date: str) ->
 
 
 def _batch_evaluate(
-    cands: List[Tuple[str, str, Optional[str]]], t_date: str, mode: str
+    cands: List[Tuple[str, str, Optional[str]]],
+    t_date: str,
+    mode: str,
+    lhb: Optional[dict] = None,
 ) -> List[dict]:
     results: List[dict] = []
     if not cands:
@@ -388,7 +517,7 @@ def _batch_evaluate(
     fn = _evaluate_pre if mode == "pre" else _evaluate_final
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
         futs = {
-            pool.submit(fn, code, name, industry, t_date): code
+            pool.submit(fn, code, name, industry, t_date, lhb): code
             for code, name, industry in cands
         }
         for fut in futs:
@@ -413,7 +542,7 @@ def _compute_board_picks() -> Optional[Tuple[str, List[BoardPick]]]:
         logger.info("打板：涨停池不可用，回退全市场扫描")
         pool = _full_market_pool()
 
-    matches = _batch_evaluate(pool, t_date, mode="final")
+    matches = _batch_evaluate(pool, t_date, mode="final", lhb=_get_lhb_net(t1_date))
     matches.sort(key=lambda m: m["open_pct"])
 
     picks: List[BoardPick] = []
@@ -475,7 +604,7 @@ def _compute_pre_picks(force: bool = False) -> Optional[Tuple[str, str, List[Boa
         logger.info("打板预选：涨停池不可用，回退全市场扫描")
         pool = _full_market_pool()
 
-    matches = _batch_evaluate(pool, source_date, mode="pre")
+    matches = _batch_evaluate(pool, source_date, mode="pre", lhb=_get_lhb_net(source_date))
     # 规则 6（按开盘涨幅排序）不应用于预选，这里按代码稳定排序便于展示
     matches.sort(key=lambda m: m["code"])
 
