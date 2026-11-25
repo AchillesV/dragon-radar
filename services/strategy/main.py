@@ -48,14 +48,17 @@ async def startup_event():
     await get_redis()
     # 打板：09:30 后自动完成当日最终选股并落库
     app.state.board_auto_task = asyncio.create_task(board_router.auto_final_loop())
+    # 打板：每交易日 15:30 自动计算下一交易日预选并落库
+    app.state.board_pre_task = asyncio.create_task(board_router.auto_pre_loop())
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     global _redis_client
-    task = getattr(app.state, "board_auto_task", None)
-    if task:
-        task.cancel()
+    for name in ("board_auto_task", "board_pre_task"):
+        task = getattr(app.state, name, None)
+        if task:
+            task.cancel()
     if _redis_client:
         await _redis_client.aclose()
         _redis_client = None

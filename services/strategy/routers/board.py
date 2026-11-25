@@ -85,9 +85,10 @@ FLOAT_CACHE_TTL = 24 * 3600   # 股本变动极少，按代码缓存 1 天
 BT_HORIZONS = (1, 3, 5, 10)
 BT_CACHE_TTL = 60  # 秒（数据量小，短缓存即可，便于手动刷新看到最新结果）
 
-# 交易时段（北京时间，分钟数）：09:30 开盘、15:00 收盘
+# 交易时段（北京时间，分钟数）：09:30 开盘、15:00 收盘；15:30 自动计算次日预选
 OPEN_TIME_MIN = 9 * 60 + 30
 CLOSE_TIME_MIN = 15 * 60
+PRE_AUTO_TIME_MIN = 15 * 60 + 30
 AUTO_CHECK_INTERVAL = 60  # 秒
 
 MAX_WORKERS = 20
@@ -95,6 +96,8 @@ PRE_CACHE_TTL = 60  # 预选结果短缓存，避免同一分钟内重复全量�
 
 # 自动最终计算完成后标记日期，避免同一天重复扫描
 _auto_finalized_date: Optional[str] = None
+# 自动预选计算完成后标记日期，避免同一天重复扫描
+_auto_pre_date: Optional[str] = None
 _pre_cache: dict = {"key": None, "ts": 0.0, "value": None}
 _lhb_cache: dict = {}    # 交易日 -> (ts, {代码: 龙虎榜净买额} / None)
 _float_cache: dict = {}  # 代码 -> (ts, 流通股本(股) / None)
@@ -577,8 +580,11 @@ def _compute_board_picks() -> Optional[Tuple[str, List[BoardPick]]]:
 
 def _compute_pre_picks(force: bool = False) -> Optional[Tuple[str, str, List[BoardPick]]]:
     """
-    预选：基于最新交易日 T 的首板，套用规则 1~4，给出下一交易日的预选池。
+    预选：基于最新交易日 T 的首板，套用规则 1~5，给出下一交易日的预选池。
     返回 (下一交易日, T, 结果)。
+
+    结果优先取内存缓存，其次取收盘后落库的预选快照；只有两者都没有（或 15:30 计算时
+    当日龙虎榜尚未发布、现已可用）才会重新扫描。
     """
     sessions = _last_two_sessions()
     if not sessions:
@@ -599,12 +605,24 @@ def _compute_pre_picks(force: bool = False) -> Optional[Tuple[str, str, List[Boa
     ):
         return _pre_cache["value"]
 
+    # 收盘后落库的预选快照：直接复用，避免重复全市场扫描
+    if not force:
+        saved = board_store.load_pre(source_date)
+        if saved is not None:
+            target_date, picks, lhb_ready = saved
+            if lhb_ready or _get_lhb_net(source_date) is None:
+                result = (target_date, source_date, picks)
+                _pre_cache.update(key=source_date, ts=now, value=result)
+                return result
+            logger.info(f"打板预选：{source_date} 龙虎榜已发布，重新计算以应用换手率/净卖出过滤")
+
     pool = _get_candidate_pool(source_date)
     if pool is None:
         logger.info("打板预选：涨停池不可用，回退全市场扫描")
         pool = _full_market_pool()
 
-    matches = _batch_evaluate(pool, source_date, mode="pre", lhb=_get_lhb_net(source_date))
+    lhb = _get_lhb_net(source_date)
+    matches = _batch_evaluate(pool, source_date, mode="pre", lhb=lhb)
     # 规则 6（按开盘涨幅排序）不应用于预选，这里按代码稳定排序便于展示
     matches.sort(key=lambda m: m["code"])
 
@@ -635,7 +653,46 @@ def _compute_pre_picks(force: bool = False) -> Optional[Tuple[str, str, List[Boa
         )
     result = (target_date, source_date, picks)
     _pre_cache.update(key=source_date, ts=now, value=result)
+    # 收盘后（含 15:30 自动任务）的预选结果落库，供下一交易日直接展示
+    if hm >= CLOSE_TIME_MIN:
+        board_store.save_pre(source_date, target_date, picks, lhb_ready=lhb is not None)
     return result
+
+
+def _auto_precompute_if_due() -> None:
+    """交易日 15:30 后自动计算下一交易日预选并落库（每天最多一次）。"""
+    global _auto_pre_date
+
+    now = _now_cn()
+    hm = now.hour * 60 + now.minute
+    today = now.strftime("%Y-%m-%d")
+    if now.weekday() >= 5 or hm < PRE_AUTO_TIME_MIN:
+        return
+    if _auto_pre_date == today:
+        return
+    # 当日行情未更新（非交易日或数据源延迟）时不做计算
+    if _fresh_session_date() != today:
+        return
+
+    result = _compute_pre_picks(force=True)
+    if result is None:
+        return
+    target_date, source_date, picks = result
+    _auto_pre_date = today
+    logger.info(
+        f"打板：15:30 后自动完成 {source_date} 预选，"
+        f"下一交易日 {target_date} 共 {len(picks)} 只"
+    )
+
+
+async def auto_pre_loop() -> None:
+    """后台任务：每隔 60 秒检查是否到达预选自动计算时间（15:30）。"""
+    while True:
+        try:
+            await asyncio.to_thread(_auto_precompute_if_due)
+        except Exception as e:
+            logger.warning(f"打板预选自动计算异常: {e}")
+        await asyncio.sleep(AUTO_CHECK_INTERVAL)
 
 
 def _auto_finalize_if_due() -> None:

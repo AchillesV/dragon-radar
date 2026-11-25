@@ -1,18 +1,21 @@
 """
-「打板」选股本地持久化 —— SQLite 存储每日最终快照
+「打板」选股本地持久化 —— SQLite 存储每日最终快照与预选快照
 
 设计目标：
   1. 每个交易日只在首次最终计算时落库一次，避免重复全市场扫描。
   2. 支持按日期查询历史快照，供前端「近 10 天」下拉筛选使用。
-  3. 只保留最近 10 个交易日的快照，超出部分自动清理。
-  4. 后台自动任务与接口可能并发访问，所有 DB 操作统一加线程锁。
+  3. 预选在收盘后（每交易日 15:30）自动计算并落库，供次日直接展示。
+  4. 只保留最近 10 个交易日的快照，超出部分自动清理。
+  5. 后台自动任务与接口可能并发访问，所有 DB 操作统一加线程锁。
 
 不引入 SQLAlchemy/额外依赖，沿用 trend_store 的标准库 sqlite3 方案。
 """
+import json
 import os
 import sqlite3
 import threading
-from typing import List, Optional
+from datetime import datetime
+from typing import List, Optional, Tuple
 
 from models import BoardPick
 
@@ -53,6 +56,17 @@ def _get_conn() -> sqlite3.Connection:
         _CONN.execute(
             "CREATE TABLE IF NOT EXISTS board_day (date TEXT PRIMARY KEY)"
         )
+        _CONN.execute(
+            """
+            CREATE TABLE IF NOT EXISTS board_pre (
+                source_date TEXT PRIMARY KEY,
+                target_date TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                lhb_ready INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         _CONN.execute("CREATE INDEX IF NOT EXISTS idx_board_snapshot_date ON board_snapshot(date)")
         _CONN.commit()
     return _CONN
@@ -70,6 +84,61 @@ def _prune(conn: sqlite3.Connection) -> None:
         cutoff = dates[KEEP_DAYS - 1]
         conn.execute("DELETE FROM board_snapshot WHERE date < ?", (cutoff,))
         conn.execute("DELETE FROM board_day WHERE date < ?", (cutoff,))
+
+
+def _prune_pre(conn: sqlite3.Connection) -> None:
+    """预选快照同样只保留最近 KEEP_DAYS 个首板日。"""
+    dates = [
+        r[0]
+        for r in conn.execute(
+            "SELECT source_date FROM board_pre ORDER BY source_date DESC"
+        ).fetchall()
+    ]
+    if len(dates) > KEEP_DAYS:
+        conn.execute("DELETE FROM board_pre WHERE source_date < ?", (dates[KEEP_DAYS - 1],))
+
+
+def save_pre(
+    source_date: str,
+    target_date: str,
+    picks: List[BoardPick],
+    lhb_ready: bool = False,
+) -> None:
+    """
+    保存某首板日的预选结果（覆盖式），供下一交易日直接展示。
+
+    lhb_ready 记录计算时当日龙虎榜数据是否已可用：为 False 时，
+    若后续龙虎榜发布，读取时会重新计算一次以应用「换手率+净卖出」过滤。
+    """
+    payload = json.dumps([p.model_dump() for p in picks], ensure_ascii=False)
+    created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with _DB_LOCK:
+        conn = _get_conn()
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO board_pre (source_date, target_date, payload, lhb_ready, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (source_date, target_date, payload, 1 if lhb_ready else 0, created_at),
+        )
+        conn.commit()
+        _prune_pre(conn)
+
+
+def load_pre(source_date: str) -> Optional[Tuple[str, List[BoardPick], bool]]:
+    """读取某首板日的预选快照，返回 (下一交易日, 结果, 龙虎榜是否已可用)；无记录返回 None。"""
+    with _DB_LOCK:
+        row = _get_conn().execute(
+            "SELECT target_date, payload, lhb_ready FROM board_pre WHERE source_date = ?",
+            (source_date,),
+        ).fetchone()
+    if row is None:
+        return None
+    try:
+        picks = [BoardPick(**d) for d in json.loads(row[1])]
+    except Exception:
+        return None
+    return row[0], picks, bool(row[2])
 
 
 def has_snapshot(date: str) -> bool:
